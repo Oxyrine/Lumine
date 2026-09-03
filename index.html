@@ -17,6 +17,8 @@
     --review: #d29922;
     --separate: #f85149;
     --chip: #21262d;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; padding: 0; }
@@ -38,8 +40,8 @@
   }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); flex: none; }
   .dot.ready { background: var(--merge); }
-  .dot.loading { background: var(--review); animation: pulse 1s infinite; }
-  @keyframes pulse { 50% { opacity: .3; } }
+  .dot.loading { background: var(--review); animation: pulse 1.2s var(--ease-in-out) infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
 
   nav {
     display: flex; border-bottom: 1px solid var(--line);
@@ -49,7 +51,9 @@
     flex: 1; background: none; border: 0; color: var(--dim);
     padding: 11px 4px; font-size: 13px; font-weight: 600; cursor: pointer;
     border-bottom: 2px solid transparent;
+    transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out), transform 120ms var(--ease-out);
   }
+  nav button:active { transform: scale(0.96); }
   nav button.active { color: var(--ink); border-bottom-color: var(--accent); }
 
   main { padding: 14px 16px 28px; flex: 1; }
@@ -62,8 +66,11 @@
     background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
     padding: 14px; margin-bottom: 12px;
   }
-  .card.tap { cursor: pointer; }
-  .card.tap:active { background: var(--panel-2); }
+  .card.tap {
+    cursor: pointer;
+    transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out), border-color 160ms var(--ease-out);
+  }
+  .card.tap:active { transform: scale(0.98); background: var(--panel-2); }
 
   .pair { font-weight: 600; }
   .pair .arrow { color: var(--dim); margin: 0 6px; }
@@ -102,7 +109,9 @@
   .actions button {
     flex: 1; padding: 11px; border-radius: 9px; font-weight: 700; font-size: 14px;
     border: 1px solid var(--line); cursor: pointer;
+    transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out), opacity 160ms var(--ease-out);
   }
+  .actions button:active:not(:disabled) { transform: scale(0.97); }
   .btn-approve { background: none; color: var(--merge); border-color: var(--merge); }
   .btn-approve.primary { background: var(--merge); color: #04140a; }
   .btn-separate { background: none; color: var(--separate); border-color: var(--separate); }
@@ -121,15 +130,21 @@
   .runbtn {
     width: 100%; margin-top: 14px; padding: 12px; border-radius: 9px; font-weight: 700;
     background: var(--accent); color: #0a1020; border: 0; cursor: pointer; font-size: 14px;
+    transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out), opacity 160ms var(--ease-out);
   }
+  .runbtn:active:not(:disabled) { transform: scale(0.97); }
 
   .stages { margin-top: 16px; }
   .stage {
     display: flex; gap: 10px; align-items: flex-start; padding: 8px 0;
     border-left: 2px solid var(--line); padding-left: 12px; margin-left: 4px;
-    opacity: .35; transition: opacity .2s;
+    opacity: .35;
+    transform: translateY(4px);
+    transition: opacity 200ms var(--ease-out),
+                transform 200ms var(--ease-out),
+                border-left-color 200ms var(--ease-out);
   }
-  .stage.on { opacity: 1; border-left-color: var(--accent); }
+  .stage.on { opacity: 1; transform: translateY(0); border-left-color: var(--accent); }
   .stage .name { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--dim); }
   .stage .val { font-size: 13px; margin-top: 2px; }
 
@@ -141,6 +156,15 @@
   .log { font-size: 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace; color: var(--dim); }
   .log div { padding: 8px 0; border-bottom: 1px solid var(--line); white-space: pre-wrap; }
   .empty { color: var(--dim); font-size: 13px; padding: 20px 0; text-align: center; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dot.loading { animation: none; opacity: .8; }
+    .stage { transform: none; transition: opacity 150ms ease; }
+    .actions button, .runbtn, .card.tap, nav button {
+      transition: none !important;
+      transform: none !important;
+    }
+  }
 </style>
 </head>
 <body>
