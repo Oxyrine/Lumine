@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Lumine</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2230;
+    --line: #2a313c;
+    --ink: #e6edf3;
+    --dim: #9aa7b4;
+    --accent: #7c9cff;
+    --merge: #3fb950;
+    --review: #d29922;
+    --separate: #f85149;
+    --chip: #21262d;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+    max-width: 430px; margin: 0 auto; min-height: 100vh;
+    display: flex; flex-direction: column;
+  }
+  header {
+    padding: 14px 16px 10px; border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; background: var(--bg); z-index: 5;
+  }
+  .brand { font-weight: 700; letter-spacing: .5px; font-size: 18px; }
+  .brand span { color: var(--accent); }
+  .modelbar {
+    margin-top: 6px; font-size: 12px; color: var(--dim);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); flex: none; }
+  .dot.ready { background: var(--merge); }
+  .dot.loading { background: var(--review); animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+
+  nav {
+    display: flex; border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; background: var(--bg);
+  }
+  nav button {
+    flex: 1; background: none; border: 0; color: var(--dim);
+    padding: 11px 4px; font-size: 13px; font-weight: 600; cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+  nav button.active { color: var(--ink); border-bottom-color: var(--accent); }
+
+  main { padding: 14px 16px 28px; flex: 1; }
+  section { display: none; }
+  section.active { display: block; }
+
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .6px; color: var(--dim); margin: 0 0 12px; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .card.tap { cursor: pointer; }
+  .card.tap:active { background: var(--panel-2); }
+
+  .pair { font-weight: 600; }
+  .pair .arrow { color: var(--dim); margin: 0 6px; }
+  .sub { color: var(--dim); font-size: 13px; margin-top: 3px; }
+
+  .badge {
+    display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .4px;
+    padding: 3px 8px; border-radius: 999px; margin-top: 10px;
+  }
+  .badge.AUTO_MERGE { background: rgba(63,185,80,.15); color: var(--merge); }
+  .badge.REVIEW_REQUIRED { background: rgba(210,153,34,.15); color: var(--review); }
+  .badge.KEEP_SEPARATE { background: rgba(248,81,73,.15); color: var(--separate); }
+  .badge.pending { background: var(--chip); color: var(--dim); }
+
+  .scoreline { display: flex; gap: 8px; margin: 12px 0 4px; flex-wrap: wrap; }
+  .scorepill {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+    padding: 6px 10px; font-size: 12px;
+  }
+  .scorepill b { font-size: 14px; display: block; margin-top: 2px; }
+  .scorepill .tag { color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: .4px; }
+
+  .evidence { list-style: none; padding: 0; margin: 10px 0; font-size: 13px; }
+  .evidence li { padding: 2px 0; }
+  .evidence .y { color: var(--merge); }
+  .evidence .n { color: var(--separate); }
+
+  .why { font-size: 13px; color: var(--dim); background: var(--panel-2); border-left: 2px solid var(--accent);
+    padding: 8px 10px; border-radius: 0 8px 8px 0; margin: 10px 0; }
+
+  .impact { font-size: 13px; margin: 10px 0; }
+  .impact div { display: flex; justify-content: space-between; padding: 2px 0; }
+  .impact .k { color: var(--dim); }
+
+  .actions { display: flex; gap: 10px; margin-top: 14px; }
+  .actions button {
+    flex: 1; padding: 11px; border-radius: 9px; font-weight: 700; font-size: 14px;
+    border: 1px solid var(--line); cursor: pointer;
+  }
+  .btn-approve { background: none; color: var(--merge); border-color: var(--merge); }
+  .btn-approve.primary { background: var(--merge); color: #04140a; }
+  .btn-separate { background: none; color: var(--separate); border-color: var(--separate); }
+  .btn-separate.primary { background: var(--separate); color: #1a0402; }
+  button:disabled { opacity: .4; cursor: default; }
+
+  label { display: block; font-size: 12px; color: var(--dim); margin: 10px 0 4px; }
+  input[type=text], textarea {
+    width: 100%; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--ink); padding: 9px 10px; font: inherit;
+  }
+  textarea { resize: vertical; min-height: 44px; }
+  .checks { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .checks label { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--ink); font-size: 13px; }
+
+  .runbtn {
+    width: 100%; margin-top: 14px; padding: 12px; border-radius: 9px; font-weight: 700;
+    background: var(--accent); color: #0a1020; border: 0; cursor: pointer; font-size: 14px;
+  }
+
+  .stages { margin-top: 16px; }
+  .stage {
+    display: flex; gap: 10px; align-items: flex-start; padding: 8px 0;
+    border-left: 2px solid var(--line); padding-left: 12px; margin-left: 4px;
+    opacity: .35; transition: opacity .2s;
+  }
+  .stage.on { opacity: 1; border-left-color: var(--accent); }
+  .stage .name { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--dim); }
+  .stage .val { font-size: 13px; margin-top: 2px; }
+
+  .big { font-size: 26px; font-weight: 700; }
+  .metric { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+  .metric .k { font-size: 12px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
+  .foot { font-size: 11px; color: var(--dim); margin-top: 6px; }
+
+  .log { font-size: 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace; color: var(--dim); }
+  .log div { padding: 8px 0; border-bottom: 1px solid var(--line); white-space: pre-wrap; }
+  .empty { color: var(--dim); font-size: 13px; padding: 20px 0; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">LUM<span>I</span>NE</div>
+  <div class="modelbar"><span id="dot" class="dot"></span><span id="modelstatus">on-device model idle</span></div>
+</header>
+
+<nav>
+  <button data-tab="review" class="active">Review</button>
+  <button data-tab="live">Live</button>
+  <button data-tab="netting">Netting</button>
+  <button data-tab="audit">Audit</button>
+</nav>
+
+<main>
+  <section id="review" class="active">
+    <h2>Daily review: <span id="pendingCount">3</span> ambiguous matches</h2>
+    <div id="queue"></div>
+  </section>
+
+  <section id="live">
+    <h2>Live resolution: enter any pair</h2>
+    <div class="card">
+      <label>Counterparty A: name</label>
+      <input type="text" id="aName" placeholder="e.g. Sunrise Digital Services" />
+      <label>A: description / context (optional)</label>
+      <textarea id="aCtx" placeholder="what the settlement record says about them"></textarea>
+      <label>A: authoritative ID (optional, GSTIN)</label>
+      <input type="text" id="aId" placeholder="blank if none on file" />
+
+      <label>Counterparty B: name</label>
+      <input type="text" id="bName" placeholder="e.g. Orbit Communications India Pvt Ltd" />
+      <label>B: description / context (optional)</label>
+      <textarea id="bCtx" placeholder="ledger / vendor-master description"></textarea>
+      <label>B: authoritative ID (optional, GSTIN)</label>
+      <input type="text" id="bId" placeholder="blank if none on file" />
+
+      <label>Corroborating evidence</label>
+      <div class="checks">
+        <label><input type="checkbox" id="evDomain" /> Same corporate domain</label>
+        <label><input type="checkbox" id="evMerger" /> Post-merger relationship noted in metadata</label>
+        <label><input type="checkbox" id="evRecurring" /> Settlement description recurs across periods</label>
+      </div>
+
+      <button class="runbtn" id="runLive">Run pipeline</button>
+      <div class="stages" id="liveStages" hidden></div>
+    </div>
+  </section>
+
+  <section id="netting">
+    <h2>Netting run: draft #2026-09-13-A</h2>
+    <div class="metric"><div class="k">Gross intercompany obligations</div><div class="big" id="mGross">—</div></div>
+    <div class="metric"><div class="k">Draft settlement volume</div><div class="big" id="mNet">—</div>
+      <div class="foot">reduction <span id="mPct">—</span></div></div>
+    <div class="metric"><div class="k">Payment legs</div><div class="big"><span id="mLegsBefore">—</span> → <span id="mLegsAfter">—</span></div>
+      <div class="foot">central-clearing model: one leg per entity with a non-zero net position</div></div>
+    <div class="metric"><div class="k">Unresolved obligations excluded</div><div class="big" id="mExcluded">—</div>
+      <div class="foot">abstention: an obligation whose counterparty identity is not corroborated is left out of the run</div></div>
+    <div class="card" style="font-size:13px">
+      <div style="color:var(--dim)">Currency: INR, single-currency MVP. Multi-currency netting requires an explicit cross-currency agreement (roadmap, not built).</div>
+    </div>
+  </section>
+
+  <section id="audit">
+    <h2>Audit log</h2>
+    <div id="auditLog" class="log"><div class="empty">No decisions recorded yet.</div></div>
+  </section>
+</main>
+
+<script type="module" src="./app.js"></script>
+<script>
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});
+</script>
+</body>
+</html>
