@@ -77,10 +77,11 @@ function renderQueue() {
     return;
   }
   q.replaceChildren();
-  for (const c of open) {
+  open.forEach((c, i) => {
     const s = scored.get(c.id);
     const card = document.createElement("div");
-    card.className = "card tap";
+    card.className = "card tap reveal";
+    card.style.setProperty("--i", i);
     setHTML(card,
       html`<div class="pair">${c.source.name}<span class="arrow">↔</span>${c.candidate.name}</div>
            <div class="sub">${s ? scoreSummary(s) : "scoring locally…"}</div>` +
@@ -88,7 +89,7 @@ function renderQueue() {
     );
     if (s) card.onclick = () => openDetail(c);
     q.appendChild(card);
-  }
+  });
 }
 
 async function scoreAllCases() {
@@ -145,7 +146,7 @@ function openDetail(c) {
      </div>` +
     html`<div class="sub" style="margin-top:10px">${s.result.reason}</div>` +
     `</div>
-     <button class="runbtn" id="backBtn" style="background:var(--chip);color:var(--ink)">Back to queue</button>`
+     <button class="runbtn ghost" id="backBtn">Back to queue</button>`
   );
   $("#backBtn").onclick = renderQueue;
   $("#dApp").onclick = () => approve(c, s);
