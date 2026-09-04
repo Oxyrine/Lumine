@@ -59,7 +59,16 @@
   .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--muted); flex: none; }
   .dot.ready { background: var(--green); }
   .dot.loading { background: var(--amber); animation: pulse 1.3s ease-in-out infinite; }
+  .dot.cut { background: var(--coral); }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  #netCut {
+    margin-top: 12px; padding: 7px 14px; border-radius: 999px;
+    font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+    background: transparent; color: var(--ink); border: 1px solid var(--hairline); cursor: pointer;
+  }
+  #netCut:disabled { opacity: 0.4; cursor: default; }
+  #netCut.cut { background: var(--coral); color: #fff; border-color: var(--coral); }
 
   /* pill-outline tab row */
   nav {
@@ -280,6 +289,7 @@
 <header>
   <div class="brand">LUM<span>I</span>NE</div>
   <div class="modelbar"><span id="dot" class="dot"></span><span id="modelstatus">on-device model idle</span></div>
+  <button id="netCut" disabled>Cut the network</button>
 </header>
 
 <nav>

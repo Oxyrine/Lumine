@@ -46,6 +46,31 @@ function goTab(name) {
 }
 
 // --------------------------------------------------------------------------
+// offline demo — cut every network call, prove matching is local (spec §15)
+// --------------------------------------------------------------------------
+let networkCut = false;
+const _fetch = window.fetch.bind(window);
+window.fetch = (...a) => (networkCut ? Promise.reject(new Error("network cut for the offline demo")) : _fetch(...a));
+const _XHR = window.XMLHttpRequest;
+window.XMLHttpRequest = function () {
+  const x = new _XHR();
+  const open = x.open.bind(x);
+  x.open = (...a) => { if (networkCut) throw new Error("network cut for the offline demo"); return open(...a); };
+  return x;
+};
+
+function setNetwork(cut) {
+  networkCut = cut;
+  const btn = $("#netCut");
+  btn.textContent = cut ? "Network cut — restore" : "Cut the network";
+  btn.classList.toggle("cut", cut);
+  $("#dot").className = cut ? "dot cut" : "dot ready";
+  modelStatus.textContent = cut
+    ? "network cut · matching runs entirely on this device"
+    : "on-device model ready · no network calls for matching";
+}
+
+// --------------------------------------------------------------------------
 // model load
 // --------------------------------------------------------------------------
 const dot = $("#dot");
@@ -59,12 +84,14 @@ loadModel((p) => {
 }).then(() => {
   dot.className = "dot ready";
   modelStatus.textContent = "on-device model ready · no network calls for matching";
+  $("#netCut").disabled = false;
   scoreAllCases();
 }).catch((e) => {
   dot.className = "dot";
   modelStatus.textContent = "model failed to load, check console";
   console.error(e);
 });
+$("#netCut").onclick = () => setNetwork(!networkCut);
 
 // --------------------------------------------------------------------------
 // review queue
@@ -287,7 +314,7 @@ $("#runLive").onclick = async () => {
   if (!isReady()) stage("LOCAL EMBEDDING", "loading model…");
   const semantic = await semanticScore(a, b);
   const fuzzy = fuzzyScore(a.name, b.name);
-  stage("LOCAL EMBEDDING", `cosine similarity ${semantic.toFixed(3)}   (on-device)`);
+  stage("LOCAL EMBEDDING", `cosine similarity ${semantic.toFixed(3)}   (${networkCut ? "network cut · on-device" : "on-device"})`);
   await wait(260);
 
   stage("TOP CANDIDATES", `1 pair · fuzzy ${fuzzy.toFixed(2)} · semantic ${semantic.toFixed(2)}`);
