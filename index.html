@@ -221,7 +221,10 @@
   .netgraph .ncircle.payer { stroke: var(--coral); fill: #fff3f0; }
   .netgraph .node.unresolved .ncircle { stroke-dasharray: 3 3; stroke: var(--muted); fill: var(--stone-soft); }
   .netgraph .nval { font-family: var(--display); font-size: 12px; fill: var(--ink); font-variant-numeric: tabular-nums; }
-  .netgraph .nlabel { font-family: var(--mono); font-size: 8px; fill: var(--muted); text-transform: uppercase; letter-spacing: 0.02em; }
+  .netgraph .nlabel {
+    font-family: var(--mono); font-size: 8px; fill: var(--slate); text-transform: uppercase; letter-spacing: 0.02em;
+    paint-order: stroke; stroke: var(--canvas); stroke-width: 3.5px; stroke-linejoin: round;
+  }
   .netgraph .node.pulse .ncircle { animation: npulse 620ms var(--ease-out); }
   @keyframes npulse { 0%{transform:scale(1)} 42%{transform:scale(1.14)} 100%{transform:scale(1)} }
   .graph-caption {
