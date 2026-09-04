@@ -117,6 +117,10 @@ header {
 }
 .brand { font-family: var(--display); font-weight: 700; letter-spacing: -0.03em; font-size: 22px; color: var(--ink); }
 .brand span { color: var(--accent); }
+.tagline {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em; line-height: 1.5;
+  text-transform: uppercase; color: var(--slate); margin-top: 8px; max-width: 40ch;
+}
 .modelbar {
   margin-top: 9px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.02em; color: var(--muted);
   text-transform: uppercase;
@@ -310,6 +314,25 @@ section.active { display: block; }
 
 .card.tap { cursor: pointer; transition: border-color 200ms var(--ease-out), background-color 200ms var(--ease-out); }
 .card.tap:active { border-color: var(--slate); background: var(--parchment-soft); }
+
+/* walkthrough invite — the intended entry point for a first-time visitor, so it
+   reads as an offer rather than a ghost button below the queue */
+.invite {
+  border: 1px solid var(--accent); border-radius: 16px; padding: 16px;
+  margin-bottom: 18px; background: var(--canvas);
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.05);
+}
+.invite .eyebrow { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
+.invite p { font-size: 14px; line-height: 1.5; color: var(--ink-body); margin: 6px 0 0; }
+.invite .runbtn { margin-top: 14px; }
+
+/* honest-scope block on the Audit tab — for shortlisting, the list of what was
+   deliberately left out is a credibility asset, not an admission */
+.scope { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--hairline); }
+.scope .eyebrow { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.scope p { font-size: 13px; color: var(--slate); margin: 8px 0 0; line-height: 1.5; }
+.scope ul { margin: 10px 0 0; padding-left: 18px; }
+.scope li { font-size: 13px; color: var(--ink-body); line-height: 1.5; padding: 3px 0; }
 
 .reveal, section.active .reveal-on-show {
   animation: reveal 560ms var(--ease-out) both;

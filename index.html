@@ -23,6 +23,7 @@
   <div id="phone">
     <header>
       <div class="brand">LUM<span>I</span>NE</div>
+      <div class="tagline">On-device counterparty resolution &amp; safe netting approval &middot; corporate treasury</div>
       <div class="modelbar"><span id="dot" class="dot"></span><span id="modelstatus">on-device model idle</span></div>
       <button id="netCut" disabled>Cut the network</button>
     </header>
@@ -43,7 +44,13 @@
           <h2><span class="qty" id="pendingCount">3</span> ambiguous matches</h2>
           <p class="sub">Each one carries a model score and a rule decision. The rule decides; you authorize.</p>
         </div>
-        <button class="runbtn ghost" id="runDemo" style="margin-top:0;margin-bottom:16px">Run guided walkthrough &rarr;</button>
+        <div class="invite">
+          <div class="invite-copy">
+            <div class="eyebrow">New here</div>
+            <p>Walk the three cases in order &mdash; one resolves on its own, one comes to you, one is refused.</p>
+          </div>
+          <button class="runbtn" id="runDemo"><span>Start the walkthrough</span><span class="ib" aria-hidden="true">&rarr;</span></button>
+        </div>
         <div id="queue"></div>
       </section>
 
@@ -122,6 +129,18 @@
           <p class="sub">Every authorization and refusal, with the evidence it rested on and the mapping version it froze.</p>
         </div>
         <div class="log" data-host="audit"><div class="empty">No decisions recorded yet.</div></div>
+
+        <div class="scope">
+          <div class="eyebrow">Deliberately not built &middot; spec &sect;16</div>
+          <p>This is the pre-shortlist prototype. Left as on-site work, not hidden:</p>
+          <ul>
+            <li>Voice approval and the second-approver tier</li>
+            <li>Snapdragon NPU delegate execution (WASM today; verified at the venue first)</li>
+            <li>Multi-currency netting &mdash; single-currency INR here</li>
+            <li>Real vendor-master / ERP integration &mdash; synthetic ledger here</li>
+            <li>The full 48-case metrics fixture behind the Proof tab&rsquo;s 14</li>
+          </ul>
+        </div>
       </section>
     </main>
   </div>

@@ -178,6 +178,8 @@ function renderQueue() {
   const q = $("#queue");
   const open = CASES.filter((c) => !mapping[c.counterpartyId] && !decidedSeparate.has(c.id));
   $("#pendingCount").textContent = open.length;
+  const invite = $(".invite");
+  if (invite && !demo.on) invite.hidden = open.length === 0;
   if (open.length === 0) {
     setHTML(q, '<div class="empty">All matches resolved. See the netting run and audit log.</div>');
     return;
@@ -483,13 +485,15 @@ const DEMO_STEPS = [
 ];
 
 function startDemo() {
+  goTab("review");   // first — the nav handler exits any running demo, and does so with demo.on still clear
   demo.on = true;
   demo.step = 0;
-  goTab("review");
+  $(".invite")?.setAttribute("hidden", "");
   renderDemoStep();
 }
 function exitDemo() {
   demo.on = false;
+  $(".invite")?.removeAttribute("hidden");
   renderQueue();
 }
 function renderDemoStep() {
