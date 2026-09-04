@@ -87,10 +87,27 @@ html, body { margin: 0; padding: 0; }
 body {
   background: var(--canvas); color: var(--ink-body);
   font: 16px/1.5 var(--sans);
-  max-width: 448px; margin: 0 auto; min-height: 100dvh;
-  display: flex; flex-direction: column;
+  min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
 }
+
+/* The phone column is the product. Below the stage breakpoint it is the whole
+   page; above it, #app becomes a two-column presentation and the column is
+   framed as a device (see the @media block in §4). The flex-column that used
+   to live on <body> lives on #phone now. */
+#phone {
+  max-width: 448px; margin: 0 auto; min-height: 100dvh;
+  display: flex; flex-direction: column;
+  background: var(--canvas);
+}
+#phone main { flex: 1; }
+#companion { display: none; }
+.graph-elsewhere { display: none; }
+
+/* #graphHost is created empty at the end of <body> and moved into whichever
+   slot is live (app.js placeGraph). It exists exactly once — createGraph()
+   has no destroy path and its <marker> id is document-global. */
+#graphSlotMobile:empty { display: none; }
 
 /* 4 ------------------------------------------------------------ header / nav */
 
@@ -145,6 +162,76 @@ nav button.active { color: #fff; background: var(--accent); border-color: var(--
 main { padding: 16px 20px 40px; flex: 1; }
 section { display: none; }
 section.active { display: block; }
+
+/* ------------------------------------------------------------ the stage
+   One DOM tree, two presentations. Every media query in this file lives here:
+   no component changes at the breakpoint, only the container — the phone
+   column stays 448px wide in both. If a second @media appears in §5, the
+   stage design has failed. */
+@media (min-width: 900px) {
+  body { background: var(--parchment-soft); }
+  #app {
+    display: grid;
+    grid-template-columns: 448px minmax(380px, 540px);
+    gap: 40px;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 44px 32px 72px;
+    align-items: start;
+  }
+  #phone {
+    min-height: 0;
+    height: min(880px, calc(100dvh - 116px));
+    border: 1px solid var(--hairline);
+    border-radius: 34px;
+    box-shadow: 0 30px 70px -26px rgba(10, 37, 64, 0.24), 0 3px 10px rgba(10, 37, 64, 0.05);
+    overflow: hidden;              /* clips the sticky nav to the frame */
+  }
+  #phone main { overflow-y: auto; overscroll-behavior: contain; }
+
+  #companion {
+    display: block;
+    position: sticky; top: 44px;
+  }
+  .companion-head { margin-bottom: 14px; }
+  .companion-head .eyebrow {
+    font-family: var(--mono); font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted);
+  }
+  .companion-sub {
+    font-family: var(--sans); font-size: 14px; color: var(--slate);
+    margin: 8px 0 0; max-width: 40ch; line-height: 1.5;
+  }
+  #graphSlotDesktop { margin: 4px 0 6px; }
+  #graphSlotDesktop .graphwrap { margin: 0; }
+  .companion-net {
+    border-top: 1px solid var(--hairline); padding-top: 18px; margin-top: 6px;
+  }
+  .companion-net .k {
+    display: block; font-family: var(--mono); font-size: 12px; text-transform: uppercase;
+    letter-spacing: 0.03em; color: var(--muted); margin-bottom: 8px;
+  }
+  .companion-net .big { font-size: var(--step-4); }
+  .companion-net .rdelta {
+    font-size: 14px; color: var(--slate); margin-top: 10px; line-height: 1.5;
+  }
+  .companion-net .rdelta b {
+    font-family: var(--num); font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink-body);
+  }
+  .companion-audit { margin-top: 22px; }
+  .companion-audit .eyebrow {
+    font-family: var(--mono); font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); display: block; margin-bottom: 8px;
+  }
+  .companion-audit .log { max-height: 220px; overflow-y: auto; }
+  .companion-audit .log .empty { text-align: left; padding: 12px 0; }
+
+  #graphSlotMobile:empty { display: block; }        /* keep the flow slot present */
+  #graphSlotMobile:empty + .graph-elsewhere {
+    display: block; font-family: var(--mono); font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.04em; margin: 2px 0 18px;
+  }
+}
 
 /* Section head. Exactly one element per section sits at --step-3 or above;
    everything else steps down hard. Before this, every screen led with the same

@@ -9,108 +9,132 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-<header>
-  <div class="brand">LUM<span>I</span>NE</div>
-  <div class="modelbar"><span id="dot" class="dot"></span><span id="modelstatus">on-device model idle</span></div>
-  <button id="netCut" disabled>Cut the network</button>
-</header>
+<div id="app">
+  <div id="phone">
+    <header>
+      <div class="brand">LUM<span>I</span>NE</div>
+      <div class="modelbar"><span id="dot" class="dot"></span><span id="modelstatus">on-device model idle</span></div>
+      <button id="netCut" disabled>Cut the network</button>
+    </header>
 
-<nav>
-  <button data-tab="review" class="active">Review</button>
-  <button data-tab="live">Live</button>
-  <button data-tab="netting">Netting</button>
-  <button data-tab="proof">Proof</button>
-  <button data-tab="audit">Audit</button>
-</nav>
-<div class="thesis">AI proposes &middot; Evidence corroborates &middot; Humans authorize &middot; then netting</div>
+    <nav>
+      <button data-tab="review" class="active">Review</button>
+      <button data-tab="live">Live</button>
+      <button data-tab="netting">Netting</button>
+      <button data-tab="proof">Proof</button>
+      <button data-tab="audit">Audit</button>
+    </nav>
+    <div class="thesis">AI proposes &middot; Evidence corroborates &middot; Humans authorize &middot; then netting</div>
 
-<main>
-  <section id="review" class="active">
-    <div class="shead">
-      <div class="eyebrow">Daily review &middot; run #2026-09-13-A</div>
-      <h2><span class="qty" id="pendingCount">3</span> ambiguous matches</h2>
-      <p class="sub">Each one carries a model score and a rule decision. The rule decides; you authorize.</p>
+    <main>
+      <section id="review" class="active">
+        <div class="shead">
+          <div class="eyebrow">Daily review &middot; run #2026-09-13-A</div>
+          <h2><span class="qty" id="pendingCount">3</span> ambiguous matches</h2>
+          <p class="sub">Each one carries a model score and a rule decision. The rule decides; you authorize.</p>
+        </div>
+        <button class="runbtn ghost" id="runDemo" style="margin-top:0;margin-bottom:16px">Run guided walkthrough &rarr;</button>
+        <div id="queue"></div>
+      </section>
+
+      <section id="live">
+        <div class="shead quiet">
+          <div class="eyebrow">Live resolution</div>
+          <h2>Enter any pair of counterparties</h2>
+          <p class="sub">The same pipeline that scored the queue, run on input you choose. Nothing leaves the device.</p>
+        </div>
+        <div class="card">
+          <label>Counterparty A: name</label>
+          <input type="text" id="aName" placeholder="e.g. Sunrise Digital Services" />
+          <label>A: description / context (optional)</label>
+          <textarea id="aCtx" placeholder="what the settlement record says about them"></textarea>
+          <label>A: authoritative ID (optional, GSTIN)</label>
+          <input type="text" id="aId" placeholder="blank if none on file" />
+
+          <label>Counterparty B: name</label>
+          <input type="text" id="bName" placeholder="e.g. Orbit Communications India Pvt Ltd" />
+          <label>B: description / context (optional)</label>
+          <textarea id="bCtx" placeholder="ledger / vendor-master description"></textarea>
+          <label>B: authoritative ID (optional, GSTIN)</label>
+          <input type="text" id="bId" placeholder="blank if none on file" />
+
+          <label>Corroborating evidence</label>
+          <div class="checks">
+            <label><input type="checkbox" id="evDomain" /> Same corporate domain</label>
+            <label><input type="checkbox" id="evMerger" /> Post-merger relationship noted in metadata</label>
+            <label><input type="checkbox" id="evRecurring" /> Settlement description recurs across periods</label>
+          </div>
+
+          <button class="runbtn" id="runLive"><span>Run pipeline</span><span class="ib" aria-hidden="true">&rarr;</span></button>
+          <div class="stages" id="liveStages" hidden></div>
+        </div>
+      </section>
+
+      <section id="netting">
+        <div class="shead">
+          <div class="eyebrow">Netting run &middot; draft #2026-09-13-A</div>
+        </div>
+        <div id="graphSlotMobile"></div>
+        <p class="graph-elsewhere">Graph shown alongside &rarr;</p>
+        <div class="readout">
+          <div class="rstat lead">
+            <span class="k">Draft settlement volume</span>
+            <span class="big" data-stat="net">&mdash;</span>
+            <div class="rdelta">down from <b data-stat="gross">&mdash;</b> gross &middot; <b data-stat="pct">&mdash;</b> less to move</div>
+          </div>
+          <div class="rrow">
+            <div class="rstat sm"><span class="k">Payment legs</span><span data-stat="legs">&mdash;</span></div>
+            <div class="rstat sm"><span class="k">Excluded</span><span data-stat="excluded">&mdash;</span></div>
+          </div>
+        </div>
+        <div class="foot" style="margin-top:16px">
+          Central-clearing model: one payment leg per entity with a non-zero net position.
+          Abstention: an obligation whose counterparty identity is not corroborated is excluded from the run.
+          Currency: INR, single-currency MVP.
+        </div>
+      </section>
+
+      <section id="proof">
+        <div class="shead">
+          <div class="eyebrow">Evaluation &middot; 14 labelled pairs</div>
+          <h2>Is the embedding layer necessary?</h2>
+          <p class="sub">Deterministic string matching alone, against string matching plus the on-device
+          embedding. Same governance gate in both. The safety metric is false merges. Computed live, here.</p>
+        </div>
+        <button class="runbtn" id="runAblation">Run evaluation<span class="ib" aria-hidden="true">&rarr;</span></button>
+        <div id="ablationBody" style="margin-top:18px"><div class="empty">Not run yet.</div></div>
+      </section>
+
+      <section id="audit">
+        <div class="shead">
+          <div class="eyebrow">Audit log &middot; spec &sect;10 format</div>
+          <h2><span class="qty" id="auditCount">0</span> decisions recorded</h2>
+          <p class="sub">Every authorization and refusal, with the evidence it rested on and the mapping version it froze.</p>
+        </div>
+        <div class="log" data-host="audit"><div class="empty">No decisions recorded yet.</div></div>
+      </section>
+    </main>
+  </div>
+
+  <aside id="companion" aria-hidden="true">
+    <div class="companion-head">
+      <div class="eyebrow">Netting run &middot; live</div>
+      <p class="companion-sub">Authorize a match in the review queue &mdash; the run re-wires here.</p>
     </div>
-    <button class="runbtn ghost" id="runDemo" style="margin-top:0;margin-bottom:16px">Run guided walkthrough &rarr;</button>
-    <div id="queue"></div>
-  </section>
-
-  <section id="live">
-    <div class="shead quiet">
-      <div class="eyebrow">Live resolution</div>
-      <h2>Enter any pair of counterparties</h2>
-      <p class="sub">The same pipeline that scored the queue, run on input you choose. Nothing leaves the device.</p>
+    <div id="graphSlotDesktop"></div>
+    <div class="companion-net">
+      <span class="k">Draft settlement volume</span>
+      <span class="big" data-stat="net">&mdash;</span>
+      <div class="rdelta">down from <b data-stat="gross">&mdash;</b> gross &middot; <b data-stat="pct">&mdash;</b> less to move</div>
     </div>
-    <div class="card">
-      <label>Counterparty A: name</label>
-      <input type="text" id="aName" placeholder="e.g. Sunrise Digital Services" />
-      <label>A: description / context (optional)</label>
-      <textarea id="aCtx" placeholder="what the settlement record says about them"></textarea>
-      <label>A: authoritative ID (optional, GSTIN)</label>
-      <input type="text" id="aId" placeholder="blank if none on file" />
-
-      <label>Counterparty B: name</label>
-      <input type="text" id="bName" placeholder="e.g. Orbit Communications India Pvt Ltd" />
-      <label>B: description / context (optional)</label>
-      <textarea id="bCtx" placeholder="ledger / vendor-master description"></textarea>
-      <label>B: authoritative ID (optional, GSTIN)</label>
-      <input type="text" id="bId" placeholder="blank if none on file" />
-
-      <label>Corroborating evidence</label>
-      <div class="checks">
-        <label><input type="checkbox" id="evDomain" /> Same corporate domain</label>
-        <label><input type="checkbox" id="evMerger" /> Post-merger relationship noted in metadata</label>
-        <label><input type="checkbox" id="evRecurring" /> Settlement description recurs across periods</label>
-      </div>
-
-      <button class="runbtn" id="runLive"><span>Run pipeline</span><span class="ib" aria-hidden="true">&rarr;</span></button>
-      <div class="stages" id="liveStages" hidden></div>
+    <div class="companion-audit">
+      <div class="eyebrow">Authorizations</div>
+      <div class="log" data-host="audit"><div class="empty">No decisions recorded yet.</div></div>
     </div>
-  </section>
+  </aside>
+</div>
 
-  <section id="netting">
-    <div class="shead">
-      <div class="eyebrow">Netting run &middot; draft #2026-09-13-A</div>
-    </div>
-    <div id="nettingGraph" class="graphwrap"></div>
-    <div class="readout">
-      <div class="rstat lead">
-        <span class="k">Draft settlement volume</span>
-        <span class="big" id="mNet">&mdash;</span>
-        <div class="rdelta">down from <b id="mGross">&mdash;</b> gross &middot; <b id="mPct">&mdash;</b> less to move</div>
-      </div>
-      <div class="rrow">
-        <div class="rstat sm"><span class="k">Payment legs</span><span id="mLegs">&mdash;</span></div>
-        <div class="rstat sm"><span class="k">Excluded</span><span id="mExcluded">&mdash;</span></div>
-      </div>
-    </div>
-    <div class="foot" style="margin-top:16px">
-      Central-clearing model: one payment leg per entity with a non-zero net position.
-      Abstention: an obligation whose counterparty identity is not corroborated is excluded from the run.
-      Currency: INR, single-currency MVP.
-    </div>
-  </section>
-
-  <section id="proof">
-    <div class="shead">
-      <div class="eyebrow">Evaluation &middot; 14 labelled pairs</div>
-      <h2>Is the embedding layer necessary?</h2>
-      <p class="sub">Deterministic string matching alone, against string matching plus the on-device
-      embedding. Same governance gate in both. The safety metric is false merges. Computed live, here.</p>
-    </div>
-    <button class="runbtn" id="runAblation">Run evaluation<span class="ib" aria-hidden="true">&rarr;</span></button>
-    <div id="ablationBody" style="margin-top:18px"><div class="empty">Not run yet.</div></div>
-  </section>
-
-  <section id="audit">
-    <div class="shead">
-      <div class="eyebrow">Audit log &middot; spec &sect;10 format</div>
-      <h2><span class="qty" id="auditCount">0</span> decisions recorded</h2>
-      <p class="sub">Every authorization and refusal, with the evidence it rested on and the mapping version it froze.</p>
-    </div>
-    <div id="auditLog" class="log"><div class="empty">No decisions recorded yet.</div></div>
-  </section>
-</main>
+<div id="graphHost" class="graphwrap"></div>
 
 <script type="module" src="./app.js"></script>
 <script>

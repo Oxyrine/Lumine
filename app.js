@@ -39,7 +39,7 @@ document.querySelectorAll("nav button").forEach((b) => {
     if (demo.on) exitDemo();
     document.querySelectorAll("nav button").forEach((x) => x.classList.toggle("active", x === b));
     document.querySelectorAll("main section").forEach((s) => s.classList.toggle("active", s.id === b.dataset.tab));
-    if (b.dataset.tab === "netting") showNetting();
+    if (b.dataset.tab === "netting") { setReadout(currentState(), true); if (graphDirty) paintGraph({ animate: true }); }
   };
 });
 function goTab(name) {
@@ -225,57 +225,97 @@ function currentState() { return { ...currentNet(), mapping: { ...mapping } }; }
 function countUp(el, to, fmt) {
   const from = el.dataset.n == null ? to : Number(el.dataset.n);
   el.dataset.n = to;
-  if (Math.abs(from - to) < 0.01) { el.textContent = fmt(to); return; }
+  // Commit the final value on any path where the tween can't be seen — reduced
+  // motion, a hidden document (rAF never fires), or no actual change. Without
+  // this the number could stay frozen at a stale value: the tween writes the
+  // text, but dataset.n was already advanced, so a later render just snaps.
+  const canAnimate =
+    !matchMedia("(prefers-reduced-motion: reduce)").matches &&
+    document.visibilityState === "visible" &&
+    Math.abs(from - to) >= 0.01;
+  if (!canAnimate) { el.textContent = fmt(to); return; }
   const t0 = performance.now();
   const step = (now) => {
     const k = Math.min(1, (now - t0) / 600);
     const e = 1 - Math.pow(1 - k, 3);
-    el.textContent = fmt(from + (to - from) * e);
+    el.textContent = fmt(k < 1 ? from + (to - from) * e : to);
     if (k < 1) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
 }
 
+// The numeric readout is a pure projection of state, so it renders into every
+// host that carries the matching [data-stat] — the phone and, on desktop, the
+// companion panel. countUp keeps per-element dataset.n, so two hosts animate
+// independently and correctly.
 function setReadout(s, animate) {
-  const num = (el, to, fmt) => {
-    if (animate) countUp(el, to, fmt);
-    else { el.dataset.n = to; el.textContent = fmt(to); }
-  };
-  num($("#mGross"), s.gross, fmtINR);
-  num($("#mNet"), s.netSettlementVolume, fmtINR);
-  num($("#mPct"), s.reductionPct, (v) => v.toFixed(1) + "%");
-  $("#mLegs").textContent = `${s.legsBefore} → ${s.legsAfter}`;
-  $("#mExcluded").textContent = String(s.excludedCount);
+  const num = (key, to, fmt) =>
+    document.querySelectorAll(`[data-stat="${key}"]`).forEach((el) => {
+      if (animate) countUp(el, to, fmt);
+      else { el.dataset.n = to; el.textContent = fmt(to); }
+    });
+  num("gross", s.gross, fmtINR);
+  num("net", s.netSettlementVolume, fmtINR);
+  num("pct", s.reductionPct, (v) => v.toFixed(1) + "%");
+  document.querySelectorAll('[data-stat="legs"]').forEach((el) => { el.textContent = `${s.legsBefore} → ${s.legsAfter}`; });
+  document.querySelectorAll('[data-stat="excluded"]').forEach((el) => { el.textContent = String(s.excludedCount); });
 }
 
-let graph = null;
-function showNetting() {
-  const s = currentState();
-  if (!graph) graph = createGraph($("#nettingGraph"));
-  graph.render(s, { animate: true });
-  setReadout(s, true);
+// --- the graph: one instance, moved between slots, never re-created ----------
+// createGraph() calls container.replaceChildren() and has no destroy path; its
+// <marker id="arrow"> is a document-global id. So it must exist exactly once.
+// appendChild relocates the node (svg, listeners, internal Maps all survive)
+// rather than rebuilding it.
+const graphHost = $("#graphHost");
+const graph = createGraph(graphHost);
+const wide = matchMedia("(min-width: 900px)");
+
+function placeGraph() {
+  const slot = wide.matches ? $("#graphSlotDesktop") : $("#graphSlotMobile");
+  if (graphHost.parentElement !== slot) slot.appendChild(graphHost);
 }
+
+const visible = (el) => (el.checkVisibility ? el.checkVisibility() : el.offsetParent !== null);
+
+// R1/R2 from the plan: never render the graph while it is not visible. It diffs
+// against its own previous state, so a hidden render would consume the delta
+// and the later animated render would have nothing left to play. Mark dirty
+// and replay on reveal instead.
+let graphDirty = true;
+function paintGraph(opts = {}) {
+  if (!visible(graphHost)) { graphDirty = true; return; }
+  graph.render(currentState(), { animate: opts.animate ?? true });
+  graphDirty = false;
+}
+
+placeGraph();
+wide.addEventListener("change", () => { placeGraph(); paintGraph({ animate: false }); });
+
 function refreshNettingNumbers() {
-  setReadout(currentState(), $("#netting").classList.contains("active"));
+  setReadout(currentState(), true);
+  paintGraph({ animate: true }); // guards visibility itself; dirty if hidden
 }
+
 setReadout(currentState(), false);
+paintGraph({ animate: true }); // desktop: draws in the companion now; mobile: stays dirty until the tab opens
 
 // --------------------------------------------------------------------------
 // audit
 // --------------------------------------------------------------------------
 function renderAudit() {
-  const el = $("#auditLog");
   $("#auditCount").textContent = String(auditLog.length);
-  if (auditLog.length === 0) {
-    setHTML(el, '<div class="empty">No decisions recorded yet.</div>');
-    return;
-  }
-  el.replaceChildren();
-  for (const line of auditLog) {
-    const d = document.createElement("div");
-    d.textContent = line;      // audit lines rendered as text, never markup
-    el.appendChild(d);
-  }
+  document.querySelectorAll('[data-host="audit"]').forEach((el) => {
+    if (auditLog.length === 0) {
+      setHTML(el, '<div class="empty">No decisions recorded yet.</div>');
+      return;
+    }
+    el.replaceChildren();
+    for (const line of auditLog) {
+      const d = document.createElement("div");
+      d.textContent = line;      // audit lines rendered as text, never markup
+      el.appendChild(d);
+    }
+  });
 }
 
 // --------------------------------------------------------------------------
