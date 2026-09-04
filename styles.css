@@ -262,11 +262,16 @@ section.active { display: block; }
 /* 5a ------------------------------------------------------------ cold open
    Sits over a fully laid-out #app — the app is never display:none, so lifting
    the overlay costs no reflow. */
+/* position:fixed alone doesn't stop the page behind it from scrolling on
+   mobile — a touch drag still scrolls the document, which peeks out from
+   under the overlay's edges. Pin <body> itself for as long as boot is up. */
+body.boot-open { position: fixed; inset: 0; width: 100%; overflow: hidden; }
+
 #boot {
   position: fixed; inset: 0; z-index: 100;
   background: var(--canvas);
   display: flex; align-items: center; justify-content: center;
-  padding: 32px;
+  padding: 32px; overflow-y: auto;
   transition: opacity 380ms var(--ease-out);
 }
 #boot.gone { opacity: 0; pointer-events: none; }

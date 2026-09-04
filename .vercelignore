@@ -1,0 +1,3 @@
+# Dev-only files — keep the deployed surface matching the app itself.
+serve.py
+test.mjs

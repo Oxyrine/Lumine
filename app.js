@@ -90,6 +90,7 @@ function dismissBoot() {
   bootDismissed = true;
   const wait = boot ? Math.max(0, BOOT_MIN - (performance.now() - bootT0)) : 0;
   setTimeout(() => {
+    document.body.classList.remove("boot-open");   // release the mobile scroll lock
     if (boot) {
       boot.classList.add("gone");
       setTimeout(() => boot.remove(), 420);
