@@ -1,6 +1,7 @@
 import { fuzzyScore, idCheck, gate, whyText, net, corroboratingFlags } from "./pipeline.js";
 import { semanticScore, loadModel, isReady } from "./embed.js";
 import { CASES, ENTITIES, OBLIGATIONS } from "./fixture.js";
+import { createGraph } from "./graph.js";
 
 // --------------------------------------------------------------------------
 // state
@@ -35,6 +36,7 @@ document.querySelectorAll("nav button").forEach((b) => {
   b.onclick = () => {
     document.querySelectorAll("nav button").forEach((x) => x.classList.toggle("active", x === b));
     document.querySelectorAll("main section").forEach((s) => s.classList.toggle("active", s.id === b.dataset.tab));
+    if (b.dataset.tab === "netting") showNetting();
   };
 });
 
@@ -102,7 +104,6 @@ async function scoreAllCases() {
     console.log(`case ${c.id}: fuzzy=${fuzzy.toFixed(3)} semantic=${semantic.toFixed(3)} id=${idStatus} -> ${result.decision}`);
   }
   renderQueue();
-  renderNetting();
 }
 
 function evLine(ok, text) {
@@ -162,7 +163,7 @@ function approve(c, s) {
     `Evidence: semantic ${s.semantic.toFixed(2)}, ${flags.length ? flags.join(", ") : "no corroborating context"}, ID ${s.idStatus}\n` +
     `Result: mapping frozen (v${mappingVersion}) for netting run #2026-09-13-A`
   );
-  renderAudit(); renderQueue(); renderNetting();
+  renderAudit(); renderQueue(); refreshNettingNumbers();
 }
 
 function keepSeparate(c, s) {
@@ -172,24 +173,52 @@ function keepSeparate(c, s) {
     `Reason: ${s.result.reason}\n` +
     `Result: obligation excluded from netting run #2026-09-13-A`
   );
-  renderAudit(); renderQueue(); renderNetting();
+  renderAudit(); renderQueue(); refreshNettingNumbers();
 }
 
 // --------------------------------------------------------------------------
 // netting
 // --------------------------------------------------------------------------
 function currentNet() { return net(OBLIGATIONS, mapping, resolved); }
+function currentState() { return { ...currentNet(), mapping: { ...mapping } }; }
 
-function renderNetting() {
-  const r = currentNet();
-  $("#mGross").textContent = fmtINR(r.gross);
-  $("#mNet").textContent = fmtINR(r.netSettlementVolume);
-  $("#mPct").textContent = r.reductionPct.toFixed(1) + "%";
-  $("#mLegsBefore").textContent = String(r.legsBefore);
-  $("#mLegsAfter").textContent = String(r.legsAfter);
-  $("#mExcluded").textContent = String(r.excludedCount);
+function countUp(el, to, fmt) {
+  const from = el.dataset.n == null ? to : Number(el.dataset.n);
+  el.dataset.n = to;
+  if (Math.abs(from - to) < 0.01) { el.textContent = fmt(to); return; }
+  const t0 = performance.now();
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / 600);
+    const e = 1 - Math.pow(1 - k, 3);
+    el.textContent = fmt(from + (to - from) * e);
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
-renderNetting();
+
+function setReadout(s, animate) {
+  const num = (el, to, fmt) => {
+    if (animate) countUp(el, to, fmt);
+    else { el.dataset.n = to; el.textContent = fmt(to); }
+  };
+  num($("#mGross"), s.gross, fmtINR);
+  num($("#mNet"), s.netSettlementVolume, fmtINR);
+  num($("#mPct"), s.reductionPct, (v) => v.toFixed(1) + "%");
+  $("#mLegs").textContent = `${s.legsBefore} → ${s.legsAfter}`;
+  $("#mExcluded").textContent = String(s.excludedCount);
+}
+
+let graph = null;
+function showNetting() {
+  const s = currentState();
+  if (!graph) graph = createGraph($("#nettingGraph"));
+  graph.render(s, { animate: true });
+  setReadout(s, true);
+}
+function refreshNettingNumbers() {
+  setReadout(currentState(), $("#netting").classList.contains("active"));
+}
+setReadout(currentState(), false);
 
 // --------------------------------------------------------------------------
 // audit

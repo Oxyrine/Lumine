@@ -215,7 +215,42 @@
 
   .big { font-family: var(--serif); font-size: 32px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.08; }
   .metric .k { font-family: var(--mono); font-size: 9.5px; color: var(--dim); text-transform: uppercase; letter-spacing: .12em; margin-bottom: 10px; }
-  .foot { font-size: 11px; color: var(--dim); margin-top: 10px; line-height: 1.5; }
+  .foot { font-size: 11px; color: var(--dim); margin-top: 10px; line-height: 1.55; }
+
+  /* netting graph */
+  .graphwrap { margin: 6px -2px 8px; }
+  .netgraph { width: 100%; height: auto; display: block; overflow: visible; }
+  .netgraph .edge {
+    stroke: rgba(200,212,230,.45); fill: none; stroke-linecap: round;
+    transition: stroke 300ms var(--ease-out), opacity 300ms var(--ease-out);
+  }
+  .netgraph .edge-ex { stroke: rgba(255,107,98,.4); stroke-dasharray: 4 4; }
+  .netgraph .node { cursor: pointer; }
+  .netgraph .node:focus { outline: none; }
+  .netgraph .ncircle { fill: var(--panel); stroke: var(--hairline); stroke-width: 1.5; transform-box: fill-box; transform-origin: center; }
+  .netgraph .ncircle.recv { stroke: rgba(74,194,107,.65); fill: rgba(74,194,107,.10); }
+  .netgraph .ncircle.payer { stroke: rgba(255,107,98,.55); fill: rgba(255,107,98,.09); }
+  .netgraph .node.unresolved .ncircle { stroke-dasharray: 3 3; }
+  .netgraph .nval { font-family: var(--serif); font-size: 12.5px; fill: var(--ink); font-variant-numeric: tabular-nums; }
+  .netgraph .nlabel { font-family: var(--mono); font-size: 7.5px; fill: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
+  .netgraph .node.pulse .ncircle { animation: npulse 620ms var(--ease-out); }
+  @keyframes npulse { 0%{transform:scale(1)} 42%{transform:scale(1.16)} 100%{transform:scale(1)} }
+  .graph-caption {
+    font-family: var(--mono); font-size: 10px; color: var(--dim);
+    text-align: center; margin-top: 8px; line-height: 1.5; min-height: 28px;
+  }
+
+  .readout { margin-top: 6px; }
+  .readout .rstat { display: flex; flex-direction: column; margin-bottom: 14px; }
+  .readout .rstat .k { font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: .12em; color: var(--dim); margin-bottom: 4px; }
+  .readout .rrow { display: flex; gap: 12px; }
+  .readout .rstat.sm { flex: 1; margin-bottom: 0; }
+  .readout .rstat.sm span:last-child { font-family: var(--serif); font-size: 19px; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .netgraph .node.pulse .ncircle { animation: none; }
+    .netgraph .edge, .netgraph .node, .netgraph .ncircle { transition: none !important; }
+  }
 
   .log { font-size: 12px; font-family: var(--mono); color: var(--dim); }
   .log div { padding: 10px 0; border-bottom: 1px solid var(--hairline); white-space: pre-wrap; }
@@ -279,15 +314,20 @@
 
   <section id="netting">
     <h2>Netting run: draft #2026-09-13-A</h2>
-    <div class="metric reveal-on-show" style="--i:0"><div class="k">Gross intercompany obligations</div><div class="big" id="mGross">&mdash;</div></div>
-    <div class="metric reveal-on-show" style="--i:1"><div class="k">Draft settlement volume</div><div class="big" id="mNet">&mdash;</div>
-      <div class="foot">reduction <span id="mPct">&mdash;</span></div></div>
-    <div class="metric reveal-on-show" style="--i:2"><div class="k">Payment legs</div><div class="big"><span id="mLegsBefore">&mdash;</span> &rarr; <span id="mLegsAfter">&mdash;</span></div>
-      <div class="foot">central-clearing model: one leg per entity with a non-zero net position</div></div>
-    <div class="metric reveal-on-show" style="--i:3"><div class="k">Unresolved obligations excluded</div><div class="big" id="mExcluded">&mdash;</div>
-      <div class="foot">abstention: an obligation whose counterparty identity is not corroborated is left out of the run</div></div>
-    <div class="card reveal-on-show" style="--i:4; font-size:13px">
-      <div style="color:var(--dim)">Currency: INR, single-currency MVP. Multi-currency netting requires an explicit cross-currency agreement (roadmap, not built).</div>
+    <div id="nettingGraph" class="graphwrap"></div>
+    <div class="readout">
+      <div class="rstat"><span class="k">Gross intercompany obligations</span><span class="big" id="mGross">&mdash;</span></div>
+      <div class="rstat"><span class="k">Draft settlement volume</span><span class="big" id="mNet">&mdash;</span></div>
+      <div class="rrow">
+        <div class="rstat sm"><span class="k">Reduction</span><span id="mPct">&mdash;</span></div>
+        <div class="rstat sm"><span class="k">Payment legs</span><span id="mLegs">&mdash;</span></div>
+        <div class="rstat sm"><span class="k">Excluded</span><span id="mExcluded">&mdash;</span></div>
+      </div>
+    </div>
+    <div class="foot" style="margin-top:14px">
+      Central-clearing model: one payment leg per entity with a non-zero net position.
+      Abstention: an obligation whose counterparty identity is not corroborated is excluded from the run.
+      Currency: INR, single-currency MVP.
     </div>
   </section>
 

@@ -87,4 +87,13 @@ t("net: legsAfter never exceeds legsBefore", () => {
   assert.ok(r.legsAfter <= r.legsBefore);
 });
 
+t("net: edges carry resolved endpoints; approved mapping rewrites them", () => {
+  const r = net(OBLIGATIONS, { "cp-sunrise": "orbit" }, resolved);
+  const o9 = r.edges.find((e) => e.id === "o9");
+  assert.equal(o9.from, "orbit");            // resolved from cp-sunrise
+  assert.equal(o9.rawFrom, "cp-sunrise");    // original preserved for animation
+  assert.ok(r.edges.every((e) => resolved.has(e.from) && resolved.has(e.to)));
+  assert.ok(r.excludedEdges.some((e) => e.id === "o10"));
+});
+
 console.log(`\n${pass} passed`);

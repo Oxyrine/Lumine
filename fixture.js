@@ -58,6 +58,17 @@ export const CASES = [
 // Six legal entities in the netting group.
 export const ENTITIES = ["meridian", "orbit", "north-star", "veritas", "cobalt", "harbor"];
 
+// Display names + graph layout. Entities sit on a circle; unresolved
+// counterparties float below until an approved mapping pulls them in.
+export const NODE_LABELS = {
+  meridian: "Meridian", orbit: "Orbit", "north-star": "North Star",
+  veritas: "Veritas", cobalt: "Cobalt", harbor: "Harbor",
+  "cp-sunrise": "Sunrise Digital", "cp-orbit-cbe": "Orbit (Coimbatore)",
+};
+
+// Counterparties not in the entity map at the start of the run.
+export const UNRESOLVED = ["cp-sunrise", "cp-orbit-cbe"];
+
 // Intercompany obligations (INR). `from` owes `to`.
 // Two obligations reference unresolved counterparties (cp-sunrise, cp-orbit-cbe)
 // so the "abstention = exclusion" behaviour is visible, and approving Case 2

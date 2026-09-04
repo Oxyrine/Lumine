@@ -165,6 +165,10 @@ export function net(obligations, mapping, resolvedEntities) {
     else excluded.push(o);
   }
 
+  // Edges with counterparties resolved to canonical entity ids, for the graph view.
+  const edges = included.map((o) => ({ id: o.id, from: resolve(o.from), to: resolve(o.to), amount: o.amount, rawFrom: o.from, rawTo: o.to }));
+  const excludedEdges = excluded.map((o) => ({ id: o.id, from: o.from, to: o.to, amount: o.amount }));
+
   const gross = included.reduce((s, o) => s + o.amount, 0);
 
   const positions = new Map(); // entityId -> net position (receivables - payables)
@@ -191,5 +195,7 @@ export function net(obligations, mapping, resolvedEntities) {
     legsAfter,
     excludedCount: excluded.length,
     positions: Object.fromEntries(positions),
+    edges,
+    excludedEdges,
   };
 }

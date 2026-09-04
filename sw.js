@@ -3,7 +3,7 @@
 // in airplane mode still works. Model weights are cached separately by
 // transformers.js (Cache API).
 const CACHE = "lumine-v1";
-const SHELL = ["./", "./index.html", "./app.js", "./pipeline.js", "./embed.js", "./fixture.js"];
+const SHELL = ["./", "./index.html", "./app.js", "./pipeline.js", "./embed.js", "./fixture.js", "./graph.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
