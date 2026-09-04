@@ -5,34 +5,35 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Lumine</title>
 <style>
-  /* Institutional-fintech system: white canvas, navy ink, one decisive blue,
-     tabular numerals, pill CTAs, flat hairline chrome with a whisper of lift.
-     Drawn from the Coinbase / Stripe / Wise registers — no display serif,
-     no editorial accent. */
+  /* Lumine — editorial treasury system.
+     White canvas + tight display + uppercase-mono eyebrows kept from the
+     editorial register; identity is its own: navy ink, a single indigo
+     voltage, an ochre "hold" state, a warm parchment framing band, and
+     every financial figure set in tabular monospace — the trustworthy-number
+     voice shared across the Stripe / Coinbase / Binance systems. */
   :root {
     --canvas: #ffffff;
-    --surface-soft: #f6f9fc;
-    --surface-inset: #eef3f8;
+    --parchment: #f3ece0;       /* warm framing band — thesis strip, notes */
+    --parchment-soft: #faf6ef;
+    --surface-inset: #f0ede6;
 
-    --ink: #0a2540;        /* headings, primary near-navy */
-    --ink-body: #3c4257;   /* body text */
-    --slate: #647084;      /* tertiary text, separators */
-    --muted: #8b94a3;      /* metadata, de-emphasised eyebrow labels */
-    --hairline: #e3e8ee;
-    --card-border: #e9edf2;
+    --ink: #0a2540;             /* navy — headings, wordmark */
+    --ink-body: #39414f;        /* body text */
+    --slate: #616d7e;           /* tertiary text, separators */
+    --muted: #8a94a4;           /* metadata, de-emphasised eyebrow labels */
+    --hairline: #e7e2d6;        /* warm hairline */
+    --card-border: #efeada;
 
-    --accent: #0a4bd8;     /* the single brand voltage: primary CTA, active tab, links, focus */
-    --accent-pale: #eaf0fd;
+    --accent: #4b3fd6;          /* indigo — the single brand voltage */
+    --accent-pale: #ecebfb;
 
-    --pos: #0b6b3a;        /* AUTO_MERGE / net receiver */
-    --pos-pale: #e7f5ec;
-    --warn: #8a5a00;       /* REVIEW_REQUIRED */
-    --warn-pale: #fbf1dd;
-    --neg: #b3261e;        /* KEEP_SEPARATE / net payer / excluded obligation */
-    --neg-pale: #fbe9e7;
+    --pos: #0c6b3b;   --pos-pale: #e8f4ec;   /* AUTO_MERGE / net receiver */
+    --warn: #8a5a12;  --warn-pale: #f6edda;   /* REVIEW_REQUIRED — the hold */
+    --neg: #b3261e;   --neg-pale: #f9e9e5;    /* KEEP_SEPARATE / net payer / excluded */
 
-    --display: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --display: "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --num: ui-monospace, "SF Mono", "IBM Plex Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
     --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
     --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   }
@@ -50,7 +51,7 @@
     padding: 20px 20px 16px;
     background: var(--canvas);
   }
-  .brand { font-family: var(--sans); font-weight: 700; letter-spacing: -0.02em; font-size: 22px; color: var(--ink); }
+  .brand { font-family: var(--display); font-weight: 700; letter-spacing: -0.03em; font-size: 22px; color: var(--ink); }
   .brand span { color: var(--accent); }
   .modelbar {
     margin-top: 9px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.02em; color: var(--muted);
@@ -71,28 +72,27 @@
   #netCut:disabled { opacity: 0.4; cursor: default; }
   #netCut.cut { background: var(--neg); color: #fff; border-color: var(--neg); }
 
-  /* understated underline tab row */
+  /* pill-outline tab row — editorial, active pill in the brand indigo */
   nav {
-    display: flex; gap: 0;
+    display: flex; gap: 5px;
     position: sticky; top: 0; z-index: 6;
     background: var(--canvas);
-    padding: 0 16px;
+    padding: 12px 16px;
     border-bottom: 1px solid var(--hairline);
   }
   nav button {
     flex: 1; background: transparent; color: var(--slate);
-    border: 0; border-bottom: 2px solid transparent;
-    padding: 14px 2px 12px; font-family: var(--sans); font-size: 12.5px; font-weight: 500;
-    letter-spacing: 0.01em; cursor: pointer;
+    border: 1px solid var(--hairline); border-radius: 999px;
+    padding: 8px 2px; font-family: var(--sans); font-size: 12px; font-weight: 500; cursor: pointer;
     transition: color 160ms var(--ease-out), border-color 160ms var(--ease-out);
   }
-  nav button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 650; }
+  nav button.active { color: #fff; background: var(--accent); border-color: var(--accent); }
 
   .thesis {
-    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.03em;
-    color: var(--slate); text-align: center;
-    background: var(--surface-soft);
-    padding: 9px 16px; border-bottom: 1px solid var(--hairline);
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.09em;
+    color: var(--slate); text-align: center; text-transform: uppercase;
+    background: var(--parchment);
+    padding: 11px 16px; border-bottom: 1px solid var(--hairline);
   }
 
   main { padding: 16px 20px 40px; flex: 1; }
@@ -109,13 +109,13 @@
 
   .card, .metric {
     background: var(--canvas); border: 1px solid var(--hairline); border-radius: 16px;
-    box-shadow: 0 1px 2px rgba(10, 37, 64, 0.04);
+    box-shadow: 0 1px 2px rgba(10, 37, 64, 0.05);
   }
   .card { padding: 18px; margin-bottom: 16px; }
   .metric { padding: 20px; margin-bottom: 12px; }
 
   .card.tap { cursor: pointer; transition: border-color 200ms var(--ease-out), background-color 200ms var(--ease-out); }
-  .card.tap:active { border-color: var(--slate); background: var(--surface-soft); }
+  .card.tap:active { border-color: var(--slate); background: var(--parchment-soft); }
 
   .reveal, section.active .reveal-on-show {
     animation: reveal 560ms var(--ease-out) both;
@@ -126,7 +126,7 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
-  .pair { font-family: var(--display); font-weight: 500; font-size: 19px; letter-spacing: -0.01em; color: var(--ink); line-height: 1.25; }
+  .pair { font-family: var(--display); font-weight: 500; font-size: 19px; letter-spacing: -0.015em; color: var(--ink); line-height: 1.25; }
   .pair .arrow { color: var(--muted); margin: 0 7px; }
   .sub { font-family: var(--mono); color: var(--slate); font-size: 12px; margin-top: 10px; }
 
@@ -143,7 +143,7 @@
   .scoreline { display: flex; gap: 10px; margin: 16px 0 6px; flex-wrap: wrap; }
   .scorepill {
     flex: 1; min-width: 130px;
-    background: var(--surface-soft); border: 1px solid var(--card-border); border-radius: 8px;
+    background: var(--parchment-soft); border: 1px solid var(--card-border); border-radius: 8px;
     padding: 12px 14px;
   }
   .scorepill b { font-family: var(--display); font-weight: 500; font-size: 20px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; display: block; margin-top: 6px; color: var(--ink); line-height: 1.15; }
@@ -164,6 +164,7 @@
   .impact { font-size: 15px; margin: 16px 0; border-top: 1px solid var(--hairline); padding-top: 12px; }
   .impact div { display: flex; justify-content: space-between; padding: 4px 0; }
   .impact .k { color: var(--slate); }
+  .impact div span:not(.k) { font-family: var(--num); font-variant-numeric: tabular-nums; color: var(--ink); }
 
   .actions { display: flex; gap: 12px; margin-top: 18px; }
   .actions button {
@@ -222,9 +223,14 @@
   .stage .name { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
   .stage .val { font-family: var(--mono); font-size: 13px; margin-top: 3px; color: var(--ink-body); }
 
-  .big { font-family: var(--display); font-size: 44px; font-weight: 400; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; color: var(--ink); }
+  .big { font-family: var(--num); font-size: 42px; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1; color: var(--ink); }
   .metric .k { font-family: var(--mono); font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 12px; }
-  .foot { font-size: 13px; color: var(--slate); margin-top: 12px; line-height: 1.55; }
+  .foot {
+    font-size: 13px; color: var(--slate); margin-top: 12px; line-height: 1.55;
+    background: var(--parchment-soft); border: 1px solid var(--card-border);
+    border-radius: 12px; padding: 14px 16px;
+  }
+  .foot:first-child { margin-top: 0; }
 
   /* netting graph */
   .graphwrap { margin: 8px -4px 12px; }
@@ -239,8 +245,8 @@
   .netgraph .ncircle { fill: var(--canvas); stroke: var(--hairline); stroke-width: 1.5; transform-box: fill-box; transform-origin: center; }
   .netgraph .ncircle.recv { stroke: var(--pos); fill: var(--pos-pale); }
   .netgraph .ncircle.payer { stroke: var(--neg); fill: var(--neg-pale); }
-  .netgraph .node.unresolved .ncircle { stroke-dasharray: 3 3; stroke: var(--muted); fill: var(--surface-soft); }
-  .netgraph .nval { font-family: var(--display); font-size: 12px; fill: var(--ink); font-variant-numeric: tabular-nums; }
+  .netgraph .node.unresolved .ncircle { stroke-dasharray: 3 3; stroke: var(--muted); fill: var(--parchment-soft); }
+  .netgraph .nval { font-family: var(--num); font-size: 12px; fill: var(--ink); font-variant-numeric: tabular-nums; }
   .netgraph .nlabel {
     font-family: var(--mono); font-size: 8px; fill: var(--slate); text-transform: uppercase; letter-spacing: 0.02em;
     paint-order: stroke; stroke: var(--canvas); stroke-width: 3.5px; stroke-linejoin: round;
@@ -257,7 +263,7 @@
   .readout .rstat .k { font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); margin-bottom: 6px; }
   .readout .rrow { display: flex; gap: 14px; border-top: 1px solid var(--hairline); padding-top: 14px; }
   .readout .rstat.sm { flex: 1; margin-bottom: 0; }
-  .readout .rstat.sm span:last-child { font-family: var(--display); font-size: 22px; font-weight: 400; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .readout .rstat.sm span:last-child { font-family: var(--num); font-size: 20px; font-weight: 500; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--ink); }
 
   .log { font-size: 13px; font-family: var(--mono); color: var(--ink-body); }
   .log div { padding: 12px 0; border-bottom: 1px solid var(--hairline); white-space: pre-wrap; }
@@ -273,7 +279,7 @@
   table.abl th, table.abl td { text-align: right; padding: 10px 8px; border-bottom: 1px solid var(--hairline); }
   table.abl th { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 400; }
   table.abl td:first-child, table.abl th:first-child { text-align: left; color: var(--slate); }
-  table.abl td { font-family: var(--display); font-variant-numeric: tabular-nums; color: var(--ink); }
+  table.abl td { font-family: var(--num); font-variant-numeric: tabular-nums; color: var(--ink); }
   table.abl td.ok { color: var(--pos); }
   table.abl td.bad { color: var(--neg); }
   .abl-note { font-size: 14px; line-height: 1.55; color: var(--ink-body); }
