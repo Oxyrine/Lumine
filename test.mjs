@@ -1,6 +1,6 @@
 // node test.mjs  — gate logic + netting math. No model needed.
 import assert from "node:assert/strict";
-import { normalize, fuzzyScore, idCheck, gate, net, HIGH } from "./pipeline.js";
+import { normalize, fuzzyScore, idCheck, gate, net, HIGH, ablationRoute, scoreAblation, FUZZY_CANDIDATE } from "./pipeline.js";
 import { OBLIGATIONS, ENTITIES } from "./fixture.js";
 
 let pass = 0;
@@ -94,6 +94,48 @@ t("net: edges carry resolved endpoints; approved mapping rewrites them", () => {
   assert.equal(o9.rawFrom, "cp-sunrise");    // original preserved for animation
   assert.ok(r.edges.every((e) => resolved.has(e.from) && resolved.has(e.to)));
   assert.ok(r.excludedEdges.some((e) => e.id === "o10"));
+});
+
+// --- ablation routing (spec §12) ---
+t("ablationRoute: exact ID -> AUTO_MERGE in both configs", () => {
+  const base = { fuzzy: 0.1, semantic: 0.1, idStatus: "match", evidence: {} };
+  assert.equal(ablationRoute({ ...base, useEmbedding: false }), "AUTO_MERGE");
+  assert.equal(ablationRoute({ ...base, useEmbedding: true }), "AUTO_MERGE");
+});
+t("ablationRoute: ID conflict -> KEEP_SEPARATE in both configs", () => {
+  const base = { fuzzy: 0.95, semantic: 0.95, idStatus: "conflict", evidence: { sameDomain: true } };
+  assert.equal(ablationRoute({ ...base, useEmbedding: false }), "KEEP_SEPARATE");
+  assert.equal(ablationRoute({ ...base, useEmbedding: true }), "KEEP_SEPARATE");
+});
+t("ablationRoute: low fuzzy + high semantic + flag -> fuzzy-only SEPARATES, full REVIEWS", () => {
+  const base = { fuzzy: 0.12, semantic: HIGH + 0.1, idStatus: "absent", evidence: { postMerger: true } };
+  assert.equal(ablationRoute({ ...base, useEmbedding: false }), "KEEP_SEPARATE"); // the false separation
+  assert.equal(ablationRoute({ ...base, useEmbedding: true }), "REVIEW_REQUIRED");
+});
+t("ablationRoute: strong string match with no flags -> REVIEW (both), no false merge", () => {
+  const base = { fuzzy: FUZZY_CANDIDATE + 0.35, semantic: 0.2, idStatus: "absent", evidence: {} };
+  assert.equal(ablationRoute({ ...base, useEmbedding: false }), "REVIEW_REQUIRED");
+});
+t("ablationRoute: nothing to go on -> KEEP_SEPARATE", () => {
+  const base = { fuzzy: 0.2, semantic: 0.2, idStatus: "absent", evidence: {} };
+  assert.equal(ablationRoute({ ...base, useEmbedding: true }), "KEEP_SEPARATE");
+});
+
+t("scoreAblation: counts false merges / separations and recovered relationships", () => {
+  const rows = [
+    { truth: "merge", fuzzyOnly: "AUTO_MERGE", full: "AUTO_MERGE" },
+    { truth: "review", fuzzyOnly: "KEEP_SEPARATE", full: "REVIEW_REQUIRED" }, // recovered
+    { truth: "review", fuzzyOnly: "REVIEW_REQUIRED", full: "REVIEW_REQUIRED" },
+    { truth: "separate", fuzzyOnly: "KEEP_SEPARATE", full: "KEEP_SEPARATE" },
+    { truth: "merge", fuzzyOnly: "AUTO_MERGE", full: "KEEP_SEPARATE" }, // full false separation
+  ];
+  const r = scoreAblation(rows);
+  assert.equal(r.fuzzyOnly.falseMerge, 0);
+  assert.equal(r.full.falseMerge, 0);
+  assert.equal(r.fuzzyOnly.falseSep, 1);   // the recovered review case
+  assert.equal(r.full.falseSep, 1);        // the merge routed to separate
+  assert.equal(r.recovered.length, 1);
+  assert.ok(r.full.reviewRecall > r.fuzzyOnly.reviewRecall);
 });
 
 console.log(`\n${pass} passed`);

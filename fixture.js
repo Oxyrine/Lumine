@@ -85,3 +85,72 @@ export const OBLIGATIONS = [
   { id: "o9", from: "cp-sunrise", to: "north-star", amount: 840_000 }, // unresolved until Case 2 approved
   { id: "o10", from: "cp-orbit-cbe", to: "north-star", amount: 700_000 }, // stays unresolved (Case 3 kept separate). Sized so that wrongly approving the ID-conflict match shows a visible (and misdirected) netting change.
 ];
+
+// ---------------------------------------------------------------------------
+// Held-out labelled set for the ablation (spec §12): fuzzy-only vs fuzzy+embedding.
+// truth: "merge" (exact identity) | "review" (real relationship, needs a human)
+//        | "separate" (no relationship, or identity conflict)
+// The rebrand / brand-vs-legal-name pairs have deliberately low string overlap:
+// fuzzy-only should route them to KEEP_SEPARATE (a false separation), the
+// embedding layer should surface them for review. Neither config should ever
+// produce a false merge.
+// ---------------------------------------------------------------------------
+export const ABLATION_CASES = [
+  { a: { name: "Apex Manufacturing Ltd", context: "Industrial fabrication and metal components." },
+    b: { name: "Apex Manufacturing Limited", context: "Metal components manufacturer, vendor master." },
+    id: "match", evidence: { recurringDescription: true }, truth: "merge" },
+
+  { a: { name: "Trinity Logistics Ltd", context: "Road freight and warehousing." },
+    b: { name: "Trinity Logistics Limited", context: "Freight forwarding, vendor master entry." },
+    id: "match", evidence: {}, truth: "merge" },
+
+  { a: { name: "Kestrel Freight", context: "Container haulage. Settlement account KES-220." },
+    b: { name: "Kestrel Logistics Solutions Pvt Ltd", context: "Logistics operator, vendor master." },
+    id: "match", evidence: {}, truth: "merge" },
+
+  { a: { name: "Nova Retail Pvt Ltd", context: "Consumer retail chain." },
+    b: { name: "Nova Retail Private Limited", context: "Retail group, recurring monthly settlement." },
+    id: "none", evidence: { recurringDescription: true }, truth: "review" },
+
+  { a: { name: "BluePeak Software", context: "Enterprise software, domain bluepeak.io." },
+    b: { name: "BluePeak Software Solutions", context: "Software services provider, domain bluepeak.io." },
+    id: "none", evidence: { sameDomain: true }, truth: "review" },
+
+  { a: { name: "Vertex Health Pvt Ltd", context: "Diagnostics laboratory network." },
+    b: { name: "Vertex Health Pvt Ltd", context: "Diagnostics network, no authoritative ID on the settlement record." },
+    id: "none", evidence: { recurringDescription: true }, truth: "review" },
+
+  // --- low string overlap, real relationship: the embedding layer's job ---
+  { a: { name: "Sunrise Digital Services", context: "Payment memo notes 'part of the Orbit group after acquisition'. Domain orbitcomm.in." },
+    b: { name: "Orbit Communications India Pvt Ltd", context: "Telecom and digital services provider. Acquired Sunrise Digital in 2024. Domain orbitcomm.in." },
+    id: "none", evidence: { postMerger: true, sameDomain: true }, truth: "review" },
+
+  { a: { name: "Meadowbrook Foods", context: "Packaged foods producer. Rebranded to Greenfield Nutrition in 2024." },
+    b: { name: "Greenfield Nutrition Corp", context: "Packaged foods and nutrition company, formerly Meadowbrook Foods." },
+    id: "none", evidence: { postMerger: true, recurringDescription: true }, truth: "review" },
+
+  { a: { name: "Orion Media", context: "On-air broadcast brand. Operated by Pinnacle Broadcasting." },
+    b: { name: "Pinnacle Broadcasting Ltd", context: "Television and radio broadcaster. Orion Media is its consumer-facing channel brand. Domain pinnaclebc.in." },
+    id: "none", evidence: { sameDomain: true }, truth: "review" },
+
+  { a: { name: "Southgate Retail", context: "Apparel retailer. Operates under Meridian Consumer Brands after the 2023 acquisition." },
+    b: { name: "Meridian Consumer Brands", context: "Consumer brands holding company. Southgate Retail is one of its apparel banners." },
+    id: "none", evidence: { postMerger: true }, truth: "review" },
+
+  // --- conflicts and genuine non-matches: both configs must keep separate ---
+  { a: { name: "Delta Components Ltd", context: "Automotive parts supplier, GSTIN 27AAECD1234A1Z1." },
+    b: { name: "Delta Components Ltd", context: "Electrical components distributor, GSTIN 29AAECD9988B1Z4." },
+    id: "conflict", evidence: {}, truth: "separate" },
+
+  { a: { name: "Orbit Communication India Private Limited", context: "Regional ISP, Coimbatore. GSTIN 33AAECO7788Q1Z2." },
+    b: { name: "Orbit Communications India Pvt Ltd", context: "National telecom operator. GSTIN 27AAECO1122P1Z9." },
+    id: "conflict", evidence: {}, truth: "separate" },
+
+  { a: { name: "Ironwood Capital", context: "Family office, Mumbai. Private wealth management." },
+    b: { name: "Redwood Advisory Group", context: "Corporate finance advisory, unrelated firm." },
+    id: "none", evidence: {}, truth: "separate" },
+
+  { a: { name: "Cobalt Systems", context: "Data centre hardware. No relationship to other counterparties." },
+    b: { name: "Cobalt Analytics", context: "Marketing analytics SaaS, unrelated company." },
+    id: "none", evidence: {}, truth: "separate" },
+];

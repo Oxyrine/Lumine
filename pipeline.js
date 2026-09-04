@@ -128,6 +128,53 @@ export function gate({ semanticScore, idStatus, evidence = {} }) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Ablation: does the embedding layer earn its place? (spec §12)
+// ---------------------------------------------------------------------------
+
+// A string-similarity score at or above this makes a pair a merge candidate
+// for the deterministic (fuzzy-only) pipeline.
+export const FUZZY_CANDIDATE = 0.5;
+
+// Route a pair using only the signals available in the chosen configuration.
+//   useEmbedding = false  -> deterministic pipeline (Layers 1 + 3 only)
+//   useEmbedding = true   -> full pipeline (adds the semantic layer)
+// Same governance gate in both cases; the difference is what counts as a candidate.
+export function ablationRoute({ fuzzy, semantic, idStatus, evidence = {}, useEmbedding }) {
+  if (idStatus === "match") return "AUTO_MERGE";
+  if (idStatus === "conflict") return "KEEP_SEPARATE";
+  const flags = corroboratingFlags(evidence);
+  const candidate = fuzzy >= FUZZY_CANDIDATE || (useEmbedding && semantic >= HIGH);
+  if (!candidate) return "KEEP_SEPARATE";
+  if (flags.length > 0) return "REVIEW_REQUIRED";
+  if (fuzzy >= FUZZY_CANDIDATE + 0.3) return "REVIEW_REQUIRED"; // very strong string match, still needs a human
+  return "KEEP_SEPARATE";
+}
+
+// rows: [{ truth: "merge"|"review"|"separate", fuzzyOnly, full }]  (decisions)
+// Scores each config for the metrics that matter (spec §12): false merges
+// (financially dangerous), false separations (efficiency cost), review recall.
+export function scoreAblation(rows) {
+  const tally = (key) => {
+    let falseMerge = 0, falseSep = 0, reviewHit = 0, reviewTotal = 0;
+    for (const r of rows) {
+      const p = r[key];
+      if (p === "AUTO_MERGE" && r.truth !== "merge") falseMerge++;
+      if (p === "KEEP_SEPARATE" && (r.truth === "merge" || r.truth === "review")) falseSep++;
+      if (r.truth === "review") {
+        reviewTotal++;
+        if (p === "REVIEW_REQUIRED") reviewHit++;
+      }
+    }
+    return { falseMerge, falseSep, reviewRecall: reviewTotal ? reviewHit / reviewTotal : 1, reviewTotal };
+  };
+  const fuzzyOnly = tally("fuzzyOnly");
+  const full = tally("full");
+  // The relationships the embedding layer recovers that fuzzy-only misses.
+  const recovered = rows.filter((r) => r.fuzzyOnly === "KEEP_SEPARATE" && r.full !== "KEEP_SEPARATE" && r.truth !== "separate");
+  return { fuzzyOnly, full, recovered };
+}
+
 // Plain-language "Why" line — templated from fields the pipeline already computes.
 // This explains the governance decision, NOT the embedding model's internals.
 export function whyText({ fuzzy, semanticScore, idStatus, evidence = {} }) {

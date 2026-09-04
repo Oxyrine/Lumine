@@ -1,6 +1,6 @@
-import { fuzzyScore, idCheck, gate, whyText, net, corroboratingFlags } from "./pipeline.js";
+import { fuzzyScore, idCheck, gate, whyText, net, corroboratingFlags, ablationRoute, scoreAblation } from "./pipeline.js";
 import { semanticScore, loadModel, isReady } from "./embed.js";
-import { CASES, ENTITIES, OBLIGATIONS } from "./fixture.js";
+import { CASES, ENTITIES, OBLIGATIONS, ABLATION_CASES } from "./fixture.js";
 import { createGraph } from "./graph.js";
 
 // --------------------------------------------------------------------------
@@ -12,6 +12,7 @@ const auditLog = [];
 const scored = new Map();           // case id -> { fuzzy, semantic, idStatus, result }
 const decidedSeparate = new Set();
 let mappingVersion = 0;
+const demo = { on: false, step: 0 };
 
 const $ = (s) => document.querySelector(s);
 const fmtINR = (n) => "₹" + Math.round(n).toLocaleString("en-IN");
@@ -34,11 +35,15 @@ function setHTML(el, s) { el.innerHTML = s; }
 // --------------------------------------------------------------------------
 document.querySelectorAll("nav button").forEach((b) => {
   b.onclick = () => {
+    if (demo.on) exitDemo();
     document.querySelectorAll("nav button").forEach((x) => x.classList.toggle("active", x === b));
     document.querySelectorAll("main section").forEach((s) => s.classList.toggle("active", s.id === b.dataset.tab));
     if (b.dataset.tab === "netting") showNetting();
   };
 });
+function goTab(name) {
+  document.querySelector(`nav button[data-tab="${name}"]`).click();
+}
 
 // --------------------------------------------------------------------------
 // model load
@@ -301,5 +306,144 @@ $("#runLive").onclick = async () => {
 };
 
 // --------------------------------------------------------------------------
+// guided demo — the three cases as one narrated sequence (spec §9)
+// --------------------------------------------------------------------------
+const DEMO_STEPS = [
+  { intro: true },
+  { caseId: 1, line: "The authoritative identifier matches exactly. Deterministic evidence is enough — Lumine resolves this automatically, no model needed." },
+  { caseId: 2, line: "The names barely overlap. The model finds a plausible relationship from the settlement context, but it cannot authorize a merge. Lumine routes it to you.", act: "approve" },
+  { caseId: 3, line: "Here the model is confident. But the authoritative identifiers conflict. Confidence does not override evidence — Lumine refuses to merge.", act: "separate" },
+  { outro: true },
+];
+
+function startDemo() {
+  demo.on = true;
+  demo.step = 0;
+  goTab("review");
+  renderDemoStep();
+}
+function exitDemo() {
+  demo.on = false;
+  renderQueue();
+}
+function renderDemoStep() {
+  const q = $("#queue");
+  const st = DEMO_STEPS[demo.step];
+  const nav = (label, fn, primary) =>
+    `<button class="runbtn ${primary ? "" : "ghost"}" id="demoNav">${esc(label)}${primary ? '<span class="ib" aria-hidden="true">&rarr;</span>' : ""}</button>`;
+
+  if (st.intro) {
+    setHTML(q,
+      `<div class="card demo-card">` +
+      `<div class="demo-kicker">Guided walkthrough</div>` +
+      `<div class="pair" style="margin-bottom:10px">Three matches, three outcomes</div>` +
+      html`<div class="demo-line">Watch the governance gate decide each case: one it resolves on its own, one it hands to you, one it refuses. AI proposes, evidence corroborates, you authorize.</div>` +
+      `</div>` +
+      nav("Start", null, true)
+    );
+    $("#demoNav").onclick = demoNext;
+    return;
+  }
+  if (st.outro) {
+    const r = currentNet();
+    setHTML(q,
+      `<div class="card demo-card">` +
+      `<div class="demo-kicker">Walkthrough complete</div>` +
+      `<div class="pair" style="margin-bottom:10px">1 auto-merged · 1 approved · 1 refused</div>` +
+      html`<div class="demo-line">Only the corroborated and approved identities entered the netting run. The refused match is excluded. Draft settlement volume is now ${fmtINR(r.netSettlementVolume)} against ${fmtINR(r.gross)} gross.</div>` +
+      `</div>` +
+      `<button class="runbtn" id="demoNet">See the netting run<span class="ib" aria-hidden="true">&rarr;</span></button>` +
+      `<button class="runbtn ghost" id="demoNav" style="margin-top:10px">Exit walkthrough</button>`
+    );
+    $("#demoNet").onclick = () => { exitDemo(); goTab("netting"); };
+    $("#demoNav").onclick = exitDemo;
+    return;
+  }
+
+  const c = CASES.find((x) => x.id === st.caseId);
+  const s = scored.get(c.id);
+  const badge = `<span class="badge ${s.result.decision}">${esc(LABEL[s.result.decision])}</span>`;
+  setHTML(q,
+    `<div class="card demo-card">` +
+    `<div class="demo-kicker">Case ${st.caseId} of 3</div>` +
+    html`<div class="pair">${c.source.name}<span class="arrow">→</span>${c.candidate.name}</div>` +
+    `<div class="scoreline" style="margin-top:14px">
+       <div class="scorepill"><span class="tag">AI confidence</span><b>${s.semantic.toFixed(2)}</b><em>model output</em></div>
+       <div class="scorepill"><span class="tag">ID check</span><b>${esc(s.idStatus)}</b><em>authoritative</em></div>
+     </div>` +
+    `<div style="margin:14px 0">${badge}</div>` +
+    html`<div class="demo-line">${st.line}</div>` +
+    `</div>` +
+    nav(demo.step === DEMO_STEPS.length - 2 ? "Finish" : "Next case", null, true)
+  );
+  $("#demoNav").onclick = demoNext;
+}
+function demoNext() {
+  const prev = DEMO_STEPS[demo.step];
+  if (prev && prev.caseId) {
+    const c = CASES.find((x) => x.id === prev.caseId);
+    const s = scored.get(c.id);
+    if (prev.act === "approve" && !mapping[c.counterpartyId]) approve(c, s);
+    if (prev.act === "separate" && !decidedSeparate.has(c.id)) keepSeparate(c, s);
+  }
+  demo.step += 1;
+  renderDemoStep();
+}
+
+// --------------------------------------------------------------------------
+// ablation — does the embedding layer earn its place? (spec §12)
+// --------------------------------------------------------------------------
+let ablationRun = false;
+async function runAblation() {
+  const out = $("#ablationBody");
+  setHTML(out, `<div class="empty">Running ${ABLATION_CASES.length} labelled pairs on-device…</div>`);
+  const rows = [];
+  for (const t of ABLATION_CASES) {
+    const fuzzy = fuzzyScore(t.a.name, t.b.name);
+    const semantic = await semanticScore(t.a, t.b);
+    const idStatus = t.id === "match" ? "match" : t.id === "conflict" ? "conflict" : "absent";
+    const base = { fuzzy, semantic, idStatus, evidence: t.evidence };
+    rows.push({
+      truth: t.truth,
+      a: t.a.name, b: t.b.name,
+      fuzzy, semantic,
+      fuzzyOnly: ablationRoute({ ...base, useEmbedding: false }),
+      full: ablationRoute({ ...base, useEmbedding: true }),
+    });
+  }
+  const r = scoreAblation(rows);
+  ablationRun = true;
+
+  const cell = (n, danger) => `<td class="${danger && n > 0 ? "bad" : n === 0 ? "ok" : ""}">${n}</td>`;
+  const pct = (x) => Math.round(x * 100) + "%";
+  setHTML(out,
+    `<table class="abl">
+      <tr><th></th><th>Fuzzy only</th><th>Fuzzy + embedding</th></tr>
+      <tr><td>False merges</td>${cell(r.fuzzyOnly.falseMerge, true)}${cell(r.full.falseMerge, true)}</tr>
+      <tr><td>False separations</td>${cell(r.fuzzyOnly.falseSep, true)}${cell(r.full.falseSep, true)}</tr>
+      <tr><td>Review-routing recall</td><td>${pct(r.fuzzyOnly.reviewRecall)}</td><td>${pct(r.full.reviewRecall)}</td></tr>
+    </table>` +
+    html`<p class="abl-note">${ablationNote(r)}</p>` +
+    (r.recovered.length
+      ? `<div class="abl-rec"><div class="demo-kicker">Recovered by the embedding layer</div><ul>` +
+        r.recovered.map((x) => html`<li>${x.a} &harr; ${x.b}</li>`).join("") + `</ul></div>`
+      : "")
+  );
+}
+function ablationNote(r) {
+  const merges = r.fuzzyOnly.falseMerge === 0 && r.full.falseMerge === 0;
+  const n = r.recovered.length;
+  if (merges && n > 0) {
+    return `Both configurations produce zero false merges. The embedding layer recovers ${n} true relationship${n === 1 ? "" : "s"} that fuzzy matching alone routes to keep-separate — brand-versus-legal-name and post-merger renames with almost no string overlap.`;
+  }
+  if (merges) {
+    return `Both configurations produce zero false merges. On this held-out set the embedding layer did not recover additional relationships beyond fuzzy matching; the string-similarity threshold already covers the easy cases.`;
+  }
+  return `Result recorded as computed. The false-merge count is the safety metric to watch.`;
+}
+
+// --------------------------------------------------------------------------
+$("#runDemo").onclick = startDemo;
+$("#runAblation").onclick = runAblation;
 renderQueue();
 renderAudit();

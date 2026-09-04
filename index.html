@@ -63,8 +63,8 @@
 
   /* pill-outline tab row */
   nav {
-    display: flex; gap: 6px;
-    margin: 14px 20px 4px;
+    display: flex; gap: 5px;
+    margin: 14px 16px 0;
     position: sticky; top: 74px; z-index: 6;
     background: var(--canvas);
     padding: 4px 0;
@@ -72,9 +72,15 @@
   nav button {
     flex: 1; background: transparent; color: var(--slate);
     border: 1px solid var(--hairline); border-radius: 999px;
-    padding: 8px 4px; font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer;
+    padding: 8px 2px; font-family: var(--sans); font-size: 12px; font-weight: 500; cursor: pointer;
   }
   nav button.active { color: #fff; background: var(--ink); border-color: var(--ink); }
+
+  .thesis {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.02em;
+    color: var(--muted); text-align: center;
+    padding: 10px 16px 0;
+  }
 
   main { padding: 16px 20px 40px; flex: 1; }
   section { display: none; }
@@ -243,6 +249,24 @@
   .log div { padding: 12px 0; border-bottom: 1px solid var(--hairline); white-space: pre-wrap; }
   .empty { color: var(--muted); font-size: 14px; padding: 28px 0; text-align: center; }
 
+  /* guided demo */
+  .demo-card { border-color: var(--ink); }
+  .demo-kicker { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--coral); margin-bottom: 10px; }
+  .demo-line { font-size: 15px; line-height: 1.5; color: var(--ink-body); margin-top: 14px; }
+
+  /* ablation table */
+  table.abl { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 16px; }
+  table.abl th, table.abl td { text-align: right; padding: 10px 8px; border-bottom: 1px solid var(--hairline); }
+  table.abl th { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 400; }
+  table.abl td:first-child, table.abl th:first-child { text-align: left; color: var(--slate); }
+  table.abl td { font-family: var(--display); font-variant-numeric: tabular-nums; color: var(--ink); }
+  table.abl td.ok { color: var(--green); }
+  table.abl td.bad { color: var(--error); }
+  .abl-note { font-size: 14px; line-height: 1.55; color: var(--ink-body); }
+  .abl-rec { margin-top: 16px; }
+  .abl-rec ul { margin: 8px 0 0; padding-left: 18px; font-size: 14px; color: var(--ink-body); }
+  .abl-rec li { padding: 3px 0; }
+
   @media (prefers-reduced-motion: reduce) {
     .dot.loading { animation: none; opacity: .8; }
     .stage { transform: none; }
@@ -262,12 +286,15 @@
   <button data-tab="review" class="active">Review</button>
   <button data-tab="live">Live</button>
   <button data-tab="netting">Netting</button>
+  <button data-tab="proof">Proof</button>
   <button data-tab="audit">Audit</button>
 </nav>
+<div class="thesis">AI proposes &middot; Evidence corroborates &middot; Humans authorize &middot; then netting</div>
 
 <main>
   <section id="review" class="active">
     <h2>Daily review: <span id="pendingCount">3</span> ambiguous matches</h2>
+    <button class="runbtn ghost" id="runDemo" style="margin-top:0;margin-bottom:16px">Run guided walkthrough &rarr;</button>
     <div id="queue"></div>
   </section>
 
@@ -317,6 +344,17 @@
       Abstention: an obligation whose counterparty identity is not corroborated is excluded from the run.
       Currency: INR, single-currency MVP.
     </div>
+  </section>
+
+  <section id="proof">
+    <h2>Is the embedding layer necessary?</h2>
+    <p class="foot" style="margin:0 0 16px">
+      Fourteen labelled pairs run through two pipelines: deterministic string matching alone,
+      and string matching plus the on-device embedding layer. Same governance gate in both.
+      The safety metric is false merges. Computed live, on-device.
+    </p>
+    <button class="runbtn" id="runAblation">Run evaluation<span class="ib" aria-hidden="true">&rarr;</span></button>
+    <div id="ablationBody" style="margin-top:18px"><div class="empty">Not run yet.</div></div>
   </section>
 
   <section id="audit">
