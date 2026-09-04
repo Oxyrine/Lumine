@@ -2,8 +2,19 @@
 // dev iteration gets fresh files, fall back to cache when offline so a reload
 // in airplane mode still works. Model weights are cached separately by
 // transformers.js (Cache API).
-const CACHE = "lumine-v1";
-const SHELL = ["./", "./index.html", "./app.js", "./pipeline.js", "./embed.js", "./fixture.js", "./graph.js"];
+// Fonts are listed here deliberately: they are same-origin, so precaching them
+// is what makes the offline story hold. A CDN-hosted font would be cross-origin
+// and skipped by the fetch handler below.
+// addAll is atomic — one bad path fails the install and the worker never
+// activates, so every entry must resolve.
+const CACHE = "lumine-v2";
+const SHELL = [
+  "./", "./index.html", "./styles.css",
+  "./app.js", "./pipeline.js", "./embed.js", "./fixture.js", "./graph.js",
+  "./fonts/SchibstedGrotesk-Variable.woff2",
+  "./fonts/IBMPlexMono-Regular.woff2",
+  "./fonts/IBMPlexMono-Medium.woff2",
+];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
