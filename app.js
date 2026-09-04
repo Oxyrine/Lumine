@@ -2,6 +2,7 @@ import { fuzzyScore, idCheck, gate, whyText, net, corroboratingFlags, ablationRo
 import { semanticScore, loadModel, isReady } from "./embed.js";
 import { CASES, ENTITIES, OBLIGATIONS, ABLATION_CASES } from "./fixture.js";
 import { createGraph } from "./graph.js";
+import { createScatter } from "./scatter.js";
 
 // --------------------------------------------------------------------------
 // state
@@ -452,6 +453,7 @@ async function runAblation() {
   const cell = (n, danger) => `<td class="${danger && n > 0 ? "bad" : n === 0 ? "ok" : ""}">${n}</td>`;
   const pct = (x) => Math.round(x * 100) + "%";
   setHTML(out,
+    `<div id="ablationPlot"></div>` +
     `<table class="abl">
       <tr><th></th><th>Fuzzy only</th><th>Fuzzy + embedding</th></tr>
       <tr><td>False merges</td>${cell(r.fuzzyOnly.falseMerge, true)}${cell(r.full.falseMerge, true)}</tr>
@@ -464,6 +466,8 @@ async function runAblation() {
         r.recovered.map((x) => html`<li>${x.a} &harr; ${x.b}</li>`).join("") + `</ul></div>`
       : "")
   );
+  // Plot on top of the table: the picture makes the argument, the table proves it.
+  createScatter($("#ablationPlot")).render(rows);
 }
 function ablationNote(r) {
   const merges = r.fuzzyOnly.falseMerge === 0 && r.full.falseMerge === 0;

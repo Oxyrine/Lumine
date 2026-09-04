@@ -10,7 +10,7 @@
 const CACHE = "lumine-v2";
 const SHELL = [
   "./", "./index.html", "./styles.css",
-  "./app.js", "./pipeline.js", "./embed.js", "./fixture.js", "./graph.js",
+  "./app.js", "./pipeline.js", "./embed.js", "./fixture.js", "./graph.js", "./scatter.js",
   "./fonts/SchibstedGrotesk-Variable.woff2",
   "./fonts/IBMPlexMono-Regular.woff2",
   "./fonts/IBMPlexMono-Medium.woff2",

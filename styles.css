@@ -361,6 +361,37 @@ table.abl td.bad { color: var(--neg); }
   text-align: center; margin-top: 10px; line-height: 1.5; min-height: 30px;
 }
 
+/* ablation scatter — the Proof screen's visual argument */
+.scatter { width: 100%; height: auto; display: block; overflow: visible; }
+.scatter .sc-zone { fill: var(--accent-pale); }
+.scatter .sc-zone-label { font-family: var(--mono); font-size: 7px; letter-spacing: 0.06em; fill: var(--accent); opacity: 0.7; }
+.scatter .sc-axis { stroke: var(--hairline); stroke-width: 1; }
+.scatter .sc-thresh { stroke: var(--slate); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.45; }
+.scatter .sc-thresh-label { font-family: var(--mono); font-size: 7px; text-transform: uppercase; letter-spacing: 0.04em; fill: var(--muted); }
+.scatter .sc-tick { font-family: var(--mono); font-size: 8px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.scatter .sc-title { font-family: var(--mono); font-size: 8px; text-transform: uppercase; letter-spacing: 0.05em; fill: var(--slate); }
+.scatter .sc-pt { transform-box: fill-box; transform-origin: center; cursor: pointer; }
+.scatter .sc-pt:focus { outline: none; }
+.scatter .sc-pt:focus-visible { stroke: var(--ink); stroke-width: 2; }
+.scatter .sc-merge { fill: var(--pos); }
+.scatter .sc-review { fill: var(--accent); }
+.scatter .sc-separate { fill: #fff; stroke: var(--neg); stroke-width: 1.5; }
+.scatter .sc-halo { fill: none; stroke: var(--accent); stroke-width: 1.5; opacity: 0.45; }
+
+.scatter-legend {
+  display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 12px;
+  font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--slate);
+}
+.scatter-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.scatter-legend .lg { width: 9px; height: 9px; border-radius: 999px; flex: none; }
+.scatter-legend .lg.sc-merge { background: var(--pos); }
+.scatter-legend .lg.sc-review { background: var(--accent); }
+.scatter-legend .lg.sc-separate { background: #fff; box-shadow: inset 0 0 0 1.5px var(--neg); }
+.scatter-caption {
+  font-family: var(--mono); font-size: 11px; color: var(--slate);
+  text-align: center; margin-top: 10px; line-height: 1.5; min-height: 30px;
+}
+
 /* 7 --------------------------------------------------------- reduced motion */
 
 @media (prefers-reduced-motion: reduce) {
