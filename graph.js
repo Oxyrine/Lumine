@@ -5,10 +5,10 @@
 import { ENTITIES, NODE_LABELS, UNRESOLVED } from "./fixture.js";
 
 const NS = "http://www.w3.org/2000/svg";
-const VB = { w: 360, h: 372 };
-const RING = { cx: 180, cy: 126, r: 90 };
-const FLOAT_Y = 326;
-const NODE_R = 23;
+const VB = { w: 360, h: 374 };
+const RING = { cx: 180, cy: 134, r: 86 };
+const FLOAT_Y = 330;
+const NODE_R = 22;
 
 const el = (name, attrs = {}) => {
   const n = document.createElementNS(NS, name);
@@ -113,7 +113,17 @@ export function createGraph(container) {
     const g = el("g", { class: "node", transform: `translate(${p.x} ${p.y})`, tabindex: "0" });
     const circle = el("circle", { r: 0, class: "ncircle" });
     const valText = el("text", { class: "nval", "text-anchor": "middle", dy: "0.35em" });
-    const label = el("text", { class: "nlabel", "text-anchor": "middle", y: NODE_R + 15 });
+    // label sits just outside the node, pushed radially away from the ring
+    // centre so it clears the arcs that hug the perimeter
+    const p0 = LAYOUT[id];
+    let lx = 0, ly = NODE_R + 15;
+    if (ENTITIES.includes(id)) {
+      const dx = p0.x - RING.cx, dy = p0.y - RING.cy;
+      const d = Math.hypot(dx, dy) || 1;
+      lx = (dx / d) * (NODE_R + 13);
+      ly = (dy / d) * (NODE_R + 13) + 3;
+    }
+    const label = el("text", { class: "nlabel", "text-anchor": "middle", x: lx, y: ly });
     label.textContent = NODE_LABELS[id] || id;
     g.append(circle, valText, label);
     g.addEventListener("click", () => {
