@@ -218,13 +218,14 @@ export function createGraph(container) {
           "marker-end": "url(#arrow)",
           fill: "none",
         });
-        if (animate) {
-          path.style.strokeDasharray = "420";
-          path.style.strokeDashoffset = "420";
-          path.style.transition = `stroke-dashoffset 620ms ease ${80 + idx * 45}ms, opacity 300ms ease`;
-          requestAnimationFrame(() => (path.style.strokeDashoffset = "0"));
-        }
         gEdges.append(path);
+        if (animate) {
+          // fade in (opacity is reliable across the display:none tab toggle;
+          // stroke-dashoffset draw-in was not)
+          path.style.opacity = "0";
+          path.style.transition = `opacity 420ms ease ${60 + idx * 35}ms`;
+          requestAnimationFrame(() => requestAnimationFrame(() => (path.style.opacity = "1")));
+        }
       });
     }
 
