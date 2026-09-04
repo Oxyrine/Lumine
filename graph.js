@@ -207,7 +207,9 @@ export function createGraph(container) {
       ...edges.map((e) => ({ ...e, kind: "in" })),
       ...excludedEdges.map((e) => ({ ...e, kind: "ex" })),
     ];
-    const key = all.map((e) => `${e.from}>${e.to}:${e.kind}`).sort().join("|");
+    // amount is part of the key: stroke-width is derived from it, so an
+    // amount-only change must still rebuild the edges.
+    const key = all.map((e) => `${e.from}>${e.to}:${e.kind}:${e.amount}`).sort().join("|");
     if (key !== lastEdgeKey) {
       lastEdgeKey = key;
       gEdges.replaceChildren();

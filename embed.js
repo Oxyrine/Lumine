@@ -22,6 +22,13 @@ export function loadModel(onProgress) {
   }).then((e) => {
     extractor = e;
     return e;
+  }).catch((err) => {
+    // Clear the cached rejection so a later call can retry. Without this one
+    // failed load (blocked CDN, dead venue wifi) permanently bricks matching
+    // for the life of the page — every subsequent loadModel() would return
+    // this same rejected promise and isReady() would never become true.
+    loadPromise = null;
+    throw err;
   });
   return loadPromise;
 }

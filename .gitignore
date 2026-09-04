@@ -4,3 +4,7 @@ Thumbs.db
 graphify-out/.graphify_python
 graphify-out/.graphify_root
 graphify-out/cache/
+
+# tooling byproduct, not part of the shipped app
+graphify-out/
+.impeccable/

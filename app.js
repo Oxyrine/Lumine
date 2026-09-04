@@ -128,12 +128,19 @@ function renderQueue() {
 
 async function scoreAllCases() {
   for (const c of CASES) {
-    const fuzzy = fuzzyScore(c.source.name, c.candidate.name);
-    const semantic = await semanticScore(c.source, c.candidate);
-    const idStatus = idCheck(c.source.id, c.candidate.id);
-    const result = gate({ semanticScore: semantic, idStatus, evidence: c.evidence });
-    scored.set(c.id, { fuzzy, semantic, idStatus, result });
-    console.log(`case ${c.id}: fuzzy=${fuzzy.toFixed(3)} semantic=${semantic.toFixed(3)} id=${idStatus} -> ${result.decision}`);
+    // Per-case guard: one failed embedding must not throw out of the loop and
+    // leave the remaining cards stuck on "scoring locally…" with no way back.
+    try {
+      const fuzzy = fuzzyScore(c.source.name, c.candidate.name);
+      const semantic = await semanticScore(c.source, c.candidate);
+      const idStatus = idCheck(c.source.id, c.candidate.id);
+      const result = gate({ semanticScore: semantic, idStatus, evidence: c.evidence });
+      scored.set(c.id, { fuzzy, semantic, idStatus, result });
+      console.log(`case ${c.id}: fuzzy=${fuzzy.toFixed(3)} semantic=${semantic.toFixed(3)} id=${idStatus} -> ${result.decision}`);
+      renderQueue(); // paint each card as it lands, not all at the end
+    } catch (e) {
+      console.error(`case ${c.id} scoring failed`, e);
+    }
   }
   renderQueue();
 }
