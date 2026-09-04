@@ -219,14 +219,6 @@ export function createGraph(container) {
           fill: "none",
         });
         gEdges.append(path);
-        if (animate) {
-          // fade in — force a reflow so "0" commits as the start state, then
-          // transition to "1" synchronously. No rAF (throttled in bg tabs).
-          path.style.opacity = "0";
-          void path.getBoundingClientRect();
-          path.style.transition = `opacity 400ms ease ${50 + idx * 30}ms`;
-          path.style.opacity = "1";
-        }
       });
     }
 
