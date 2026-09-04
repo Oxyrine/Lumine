@@ -100,7 +100,7 @@ export function gate({ semanticScore, idStatus, evidence = {} }) {
     return {
       decision: "KEEP_SEPARATE",
       authority: "rule",
-      reason: "Authoritative identifiers conflict. An ID conflict overrides semantic confidence — the names may look alike but the identifiers say these are different entities.",
+      reason: "Authoritative identifiers conflict. An ID conflict overrides semantic confidence: the names may look alike, but the identifiers say these are different entities.",
     };
   }
   // No authoritative ID — semantic path.
