@@ -35,7 +35,7 @@ const lakh = (n) => {
   const s = v >= 0 ? "+" : "−";
   return `${s}${Math.abs(v).toFixed(1)}L`;
 };
-const edgeWidth = (amt) => Math.max(1, Math.min(3.4, amt / 360000));
+const edgeWidth = (amt) => Math.max(1.5, Math.min(3.6, amt / 340000));
 
 // Arc between two points that bows AWAY from the ring centre, so edges hug the
 // perimeter instead of crossing through the middle. `extra` nudges parallel
