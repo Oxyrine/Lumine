@@ -255,6 +255,50 @@ section.active { display: block; }
 /* Forms don't get a hero — the fields are the content. */
 .shead.quiet h2 { font-size: var(--step-1); letter-spacing: -0.01em; }
 
+/* 5a ------------------------------------------------------------ cold open
+   Sits over a fully laid-out #app — the app is never display:none, so lifting
+   the overlay costs no reflow. */
+#boot {
+  position: fixed; inset: 0; z-index: 100;
+  background: var(--canvas);
+  display: flex; align-items: center; justify-content: center;
+  padding: 32px;
+  transition: opacity 380ms var(--ease-out);
+}
+#boot.gone { opacity: 0; pointer-events: none; }
+.boot-inner { width: 100%; max-width: 520px; }
+.boot-mark { font-family: var(--display); font-weight: 700; letter-spacing: -0.03em; font-size: 24px; color: var(--ink); }
+.boot-mark span { color: var(--accent); }
+.boot-thesis {
+  font-family: var(--display); font-weight: 500; letter-spacing: -0.02em;
+  font-size: var(--step-2); line-height: 1.22; color: var(--ink); margin: 22px 0 0;
+}
+.boot-thesis em { font-style: normal; color: var(--slate); }
+.boot-status {
+  font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--muted); margin-top: 26px;
+}
+.boot-bar { height: 3px; background: var(--surface-inset); border-radius: 999px; margin-top: 14px; overflow: hidden; max-width: 260px; }
+.boot-bar i {
+  display: block; height: 100%; width: 100%; background: var(--accent);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform 220ms var(--ease-out);
+}
+.boot-actions { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; }
+.boot-actions button {
+  font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer;
+  border: 1px solid var(--hairline); background: transparent; color: var(--ink);
+  border-radius: 999px; padding: 8px 16px;
+}
+.boot-actions button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.boot-actions button:disabled { opacity: 0.4; cursor: default; }
+@media (min-width: 900px) {
+  .boot-thesis { font-size: var(--step-3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #boot { transition: none; }
+}
+
 /* 5 ------------------------------------------------------------- components */
 
 .card, .metric {

@@ -72,26 +72,96 @@ function setNetwork(cut) {
 }
 
 // --------------------------------------------------------------------------
-// model load
+// model load — the cold open
 // --------------------------------------------------------------------------
 const dot = $("#dot");
 const modelStatus = $("#modelstatus");
-dot.className = "dot loading";
-modelStatus.textContent = "loading on-device model…";
-loadModel((p) => {
+const boot = $("#boot");
+const bootStatus = $("#bootStatus");
+const bootBar = $("#bootBar");
+const bootActions = $("#bootActions");
+const BOOT_MIN = 450;              // flash-of-content floor — NOT a fabricated delay
+const bootT0 = performance.now();
+let bootDismissed = false;
+let sawProgress = false;
+
+function dismissBoot() {
+  if (bootDismissed) return;
+  bootDismissed = true;
+  const wait = boot ? Math.max(0, BOOT_MIN - (performance.now() - bootT0)) : 0;
+  setTimeout(() => {
+    if (boot) {
+      boot.classList.add("gone");
+      setTimeout(() => boot.remove(), 420);
+    }
+    // The first graph render happens HERE, not at module load: on desktop the
+    // companion is visible behind the overlay, so an earlier render would play
+    // the spawn-in unseen.
+    paintGraph({ animate: true });
+    const phone = $("#phone");
+    if (phone && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      phone.animate(
+        [{ transform: "translateY(10px)", opacity: 0.5 }, { transform: "none", opacity: 1 }],
+        { duration: 460, easing: "cubic-bezier(0.22,1,0.36,1)" }
+      );
+    }
+  }, wait);
+}
+
+function bootProgress(p) {
   if (p.status === "progress" && p.total) {
+    sawProgress = true;
+    if (bootBar) { bootBar.hidden = false; bootBar.firstElementChild.style.transform = `scaleX(${(p.loaded / p.total).toFixed(3)})`; }
+    const line = `downloading the model to this device — ${(p.loaded / 1e6).toFixed(1)} of ${(p.total / 1e6).toFixed(0)} MB`;
+    if (bootStatus) bootStatus.textContent = line;
     modelStatus.textContent = `downloading model ${(p.loaded / 1e6).toFixed(1)} / ${(p.total / 1e6).toFixed(0)} MB`;
   }
-}).then(() => {
-  dot.className = "dot ready";
-  modelStatus.textContent = "on-device model ready · no network calls for matching";
-  $("#netCut").disabled = false;
-  scoreAllCases();
-}).catch((e) => {
+}
+
+function bootFail(err) {
+  console.error(err);
   dot.className = "dot";
   modelStatus.textContent = "model failed to load, check console";
-  console.error(e);
-});
+  if (!boot) return;
+  bootStatus.textContent = "the model could not be downloaded";
+  bootBar.hidden = true;
+  setHTML(bootActions, "");
+  const retry = document.createElement("button");
+  retry.className = "primary";
+  retry.textContent = "Retry";
+  retry.disabled = networkCut;   // the network-cut monkeypatch would fail the fetch
+  retry.title = networkCut ? "restore the network first" : "";
+  retry.onclick = () => { setHTML(bootActions, ""); bootStatus.textContent = "retrying"; startModel(); };
+  const skip = document.createElement("button");
+  skip.textContent = "Continue without the model";
+  skip.onclick = dismissBoot;
+  bootActions.append(retry, skip);
+}
+
+// If the download is genuinely slow, let people move on. The model keeps
+// loading; scoreAllCases still fires on resolve.
+let skipTimer = setTimeout(() => {
+  if (bootDismissed || isReady() || !bootActions) return;
+  const skip = document.createElement("button");
+  skip.textContent = "Skip — explore the interface";
+  skip.onclick = dismissBoot;
+  bootActions.append(skip);
+}, 6000);
+
+function startModel() {
+  dot.className = "dot loading";
+  modelStatus.textContent = "loading on-device model…";
+  loadModel(bootProgress).then(() => {
+    clearTimeout(skipTimer);
+    dot.className = "dot ready";
+    modelStatus.textContent = "on-device model ready · no network calls for matching";
+    $("#netCut").disabled = false;
+    if (bootStatus) bootStatus.textContent = sawProgress ? "model ready · matching runs on this device" : "model already on this device";
+    dismissBoot();
+    scoreAllCases();
+  }).catch(bootFail);
+}
+startModel();
 $("#netCut").onclick = () => setNetwork(!networkCut);
 
 // --------------------------------------------------------------------------
@@ -100,6 +170,7 @@ $("#netCut").onclick = () => setNetwork(!networkCut);
 const LABEL = { AUTO_MERGE: "Auto-merge", REVIEW_REQUIRED: "Review required", KEEP_SEPARATE: "Keep separate" };
 
 function scoreSummary(s) {
+  if (s.semantic == null) return `fuzzy ${s.fuzzy.toFixed(2)} · ID ${s.idStatus} — the identifier decided this`;
   return `fuzzy ${s.fuzzy.toFixed(2)} · semantic ${s.semantic.toFixed(2)} · ID ${s.idStatus}`;
 }
 
@@ -127,17 +198,34 @@ function renderQueue() {
   });
 }
 
+// The cases the identifier decides need no model — score them synchronously at
+// load so two of the three cards carry a real decision within milliseconds,
+// and the queue still works if the model never loads at all.
+function scoreIdCases() {
+  for (const c of CASES) {
+    if (scored.has(c.id)) continue;
+    const idStatus = idCheck(c.source.id, c.candidate.id);
+    if (idStatus === "absent") continue; // this one genuinely needs the embedding
+    const fuzzy = fuzzyScore(c.source.name, c.candidate.name);
+    const result = gate({ semanticScore: null, idStatus, evidence: c.evidence });
+    scored.set(c.id, { fuzzy, semantic: null, idStatus, result });
+  }
+  renderQueue();
+}
+
 async function scoreAllCases() {
   for (const c of CASES) {
+    if (scored.has(c.id)) continue;
     // Per-case guard: one failed embedding must not throw out of the loop and
     // leave the remaining cards stuck on "scoring locally…" with no way back.
     try {
       const fuzzy = fuzzyScore(c.source.name, c.candidate.name);
-      const semantic = await semanticScore(c.source, c.candidate);
       const idStatus = idCheck(c.source.id, c.candidate.id);
+      // gate() ignores semanticScore when the ID is decisive — only pay for the
+      // embedding when the decision actually turns on it.
+      const semantic = idStatus === "absent" ? await semanticScore(c.source, c.candidate) : null;
       const result = gate({ semanticScore: semantic, idStatus, evidence: c.evidence });
       scored.set(c.id, { fuzzy, semantic, idStatus, result });
-      console.log(`case ${c.id}: fuzzy=${fuzzy.toFixed(3)} semantic=${semantic.toFixed(3)} id=${idStatus} -> ${result.decision}`);
       renderQueue(); // paint each card as it lands, not all at the end
     } catch (e) {
       console.error(`case ${c.id} scoring failed`, e);
@@ -166,7 +254,7 @@ function openDetail(c) {
     `<div class="card">` +
     html`<div class="pair">${c.source.name}<span class="arrow">→</span>${c.candidate.name}</div>` +
     `<div class="scoreline">
-       <div class="scorepill"><span class="tag">AI confidence</span><b>${s.semantic.toFixed(2)}</b><em>model output</em></div>
+       <div class="scorepill"><span class="tag">AI confidence</span><b>${s.semantic == null ? "not used" : s.semantic.toFixed(2)}</b><em>${s.semantic == null ? "the identifier decided this" : "model output"}</em></div>
        <div class="scorepill"><span class="tag">Gate decision</span><b>${esc(LABEL[s.result.decision])}</b><em>deterministic rule</em></div>
      </div>
      <ul class="evidence">
@@ -297,7 +385,9 @@ function refreshNettingNumbers() {
 }
 
 setReadout(currentState(), false);
-paintGraph({ animate: true }); // desktop: draws in the companion now; mobile: stays dirty until the tab opens
+// The first graph render is owned by dismissBoot() so its spawn-in isn't spent
+// behind the cold-open overlay. With no overlay (rollback), render now instead.
+if (!boot) requestAnimationFrame(() => paintGraph({ animate: true }));
 
 // --------------------------------------------------------------------------
 // audit
@@ -444,7 +534,7 @@ function renderDemoStep() {
     `<div class="demo-kicker">Case ${st.caseId} of 3</div>` +
     html`<div class="pair">${c.source.name}<span class="arrow">→</span>${c.candidate.name}</div>` +
     `<div class="scoreline" style="margin-top:14px">
-       <div class="scorepill"><span class="tag">AI confidence</span><b>${s.semantic.toFixed(2)}</b><em>model output</em></div>
+       <div class="scorepill"><span class="tag">AI confidence</span><b>${s.semantic == null ? "not used" : s.semantic.toFixed(2)}</b><em>${s.semantic == null ? "identifier decided" : "model output"}</em></div>
        <div class="scorepill"><span class="tag">ID check</span><b>${esc(s.idStatus)}</b><em>authoritative</em></div>
      </div>` +
     `<div style="margin:14px 0">${badge}</div>` +
@@ -524,5 +614,9 @@ function ablationNote(r) {
 // --------------------------------------------------------------------------
 $("#runDemo").onclick = startDemo;
 $("#runAblation").onclick = runAblation;
-renderQueue();
+scoreIdCases();   // ID-decided cases land now, before the model finishes
 renderAudit();
+
+// No cold-open overlay (rollback): nothing lifts it, so score everything and
+// dismiss immediately.
+if (!boot) { dismissBoot(); }
