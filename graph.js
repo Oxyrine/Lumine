@@ -5,9 +5,10 @@
 import { ENTITIES, NODE_LABELS, UNRESOLVED } from "./fixture.js";
 
 const NS = "http://www.w3.org/2000/svg";
-const VB = { w: 360, h: 384 };
-const RING = { cx: 180, cy: 142, r: 106 };
-const FLOAT_Y = 340;
+const VB = { w: 360, h: 372 };
+const RING = { cx: 180, cy: 126, r: 90 };
+const FLOAT_Y = 326;
+const NODE_R = 23;
 
 const el = (name, attrs = {}) => {
   const n = document.createElementNS(NS, name);
@@ -34,18 +35,24 @@ const lakh = (n) => {
   const s = v >= 0 ? "+" : "−";
   return `${s}${Math.abs(v).toFixed(1)}L`;
 };
-const edgeWidth = (amt) => Math.max(1.4, Math.min(4.5, amt / 300000));
+const edgeWidth = (amt) => Math.max(1, Math.min(3.4, amt / 360000));
 
-// Quadratic curve between two points, bowed perpendicular so parallel edges separate.
-function curve(a, b, bow) {
+// Arc between two points that bows AWAY from the ring centre, so edges hug the
+// perimeter instead of crossing through the middle. `extra` nudges parallel
+// edges (same node pair) apart.
+function arc(a, b, extra = 0) {
   const mx = (a.x + b.x) / 2;
   const my = (a.y + b.y) / 2;
   const dx = b.x - a.x;
   const dy = b.y - a.y;
-  const len = Math.hypot(dx, dy) || 1;
-  const cx = mx + (-dy / len) * bow;
-  const cy = my + (dx / len) * bow;
-  return `M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`;
+  const chord = Math.hypot(dx, dy) || 1;
+  // perpendicular unit vector
+  let px = -dy / chord;
+  let py = dx / chord;
+  // point it away from the ring centre
+  if (px * (mx - RING.cx) + py * (my - RING.cy) < 0) { px = -px; py = -py; }
+  const bow = Math.min(34, 0.24 * chord) + extra;
+  return `M ${a.x} ${a.y} Q ${mx + px * bow} ${my + py * bow} ${b.x} ${b.y}`;
 }
 
 // Trim an endpoint back toward the other node by r, so arrowheads sit on the rim.
@@ -106,7 +113,7 @@ export function createGraph(container) {
     const g = el("g", { class: "node", transform: `translate(${p.x} ${p.y})`, tabindex: "0" });
     const circle = el("circle", { r: 0, class: "ncircle" });
     const valText = el("text", { class: "nval", "text-anchor": "middle", dy: "0.35em" });
-    const label = el("text", { class: "nlabel", "text-anchor": "middle", y: 42 });
+    const label = el("text", { class: "nlabel", "text-anchor": "middle", y: NODE_R + 15 });
     label.textContent = NODE_LABELS[id] || id;
     g.append(circle, valText, label);
     g.addEventListener("click", () => {
@@ -153,7 +160,7 @@ export function createGraph(container) {
       rec.circle.classList.toggle("recv", inRun && val >= 0);
       rec.circle.classList.toggle("payer", inRun && val < 0);
 
-      const targetR = 26;
+      const targetR = NODE_R;
       if (firstPaint && animate) {
         rec.circle.setAttribute("r", "0");
         setTimeout(() => {
@@ -194,24 +201,27 @@ export function createGraph(container) {
     if (key !== lastEdgeKey) {
       lastEdgeKey = key;
       gEdges.replaceChildren();
+      const seen = new Map(); // node-pair -> count, to fan out parallel edges
       all.forEach((e, idx) => {
         const a0 = LAYOUT[e.from];
         const b0 = LAYOUT[e.to];
         if (!a0 || !b0) return;
-        const bow = 12 * (idx % 2 ? 1 : -1);
-        const a = trim(a0, b0, 27);
-        const b = trim(b0, a0, 32);
+        const pair = [e.from, e.to].sort().join("|");
+        const dup = seen.get(pair) || 0;
+        seen.set(pair, dup + 1);
+        const a = trim(a0, b0, NODE_R + 1);
+        const b = trim(b0, a0, NODE_R + 5);
         const path = el("path", {
-          d: curve(a, b, bow),
+          d: arc(a, b, dup * 14),
           class: `edge${e.kind === "ex" ? " edge-ex" : ""}`,
           "stroke-width": edgeWidth(e.amount),
           "marker-end": "url(#arrow)",
           fill: "none",
         });
         if (animate) {
-          path.style.strokeDasharray = "400";
-          path.style.strokeDashoffset = "400";
-          path.style.transition = `stroke-dashoffset 600ms ease ${100 + idx * 40}ms, opacity 300ms ease`;
+          path.style.strokeDasharray = "420";
+          path.style.strokeDashoffset = "420";
+          path.style.transition = `stroke-dashoffset 620ms ease ${80 + idx * 45}ms, opacity 300ms ease`;
           requestAnimationFrame(() => (path.style.strokeDashoffset = "0"));
         }
         gEdges.append(path);
