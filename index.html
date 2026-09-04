@@ -26,13 +26,21 @@
 
 <main>
   <section id="review" class="active">
-    <h2>Daily review: <span id="pendingCount">3</span> ambiguous matches</h2>
+    <div class="shead">
+      <div class="eyebrow">Daily review &middot; run #2026-09-13-A</div>
+      <h2><span class="qty" id="pendingCount">3</span> ambiguous matches</h2>
+      <p class="sub">Each one carries a model score and a rule decision. The rule decides; you authorize.</p>
+    </div>
     <button class="runbtn ghost" id="runDemo" style="margin-top:0;margin-bottom:16px">Run guided walkthrough &rarr;</button>
     <div id="queue"></div>
   </section>
 
   <section id="live">
-    <h2>Live resolution: enter any pair</h2>
+    <div class="shead quiet">
+      <div class="eyebrow">Live resolution</div>
+      <h2>Enter any pair of counterparties</h2>
+      <p class="sub">The same pipeline that scored the queue, run on input you choose. Nothing leaves the device.</p>
+    </div>
     <div class="card">
       <label>Counterparty A: name</label>
       <input type="text" id="aName" placeholder="e.g. Sunrise Digital Services" />
@@ -61,13 +69,17 @@
   </section>
 
   <section id="netting">
-    <h2>Netting run: draft #2026-09-13-A</h2>
+    <div class="shead">
+      <div class="eyebrow">Netting run &middot; draft #2026-09-13-A</div>
+    </div>
     <div id="nettingGraph" class="graphwrap"></div>
     <div class="readout">
-      <div class="rstat"><span class="k">Gross intercompany obligations</span><span class="big" id="mGross">&mdash;</span></div>
-      <div class="rstat"><span class="k">Draft settlement volume</span><span class="big" id="mNet">&mdash;</span></div>
+      <div class="rstat lead">
+        <span class="k">Draft settlement volume</span>
+        <span class="big" id="mNet">&mdash;</span>
+        <div class="rdelta">down from <b id="mGross">&mdash;</b> gross &middot; <b id="mPct">&mdash;</b> less to move</div>
+      </div>
       <div class="rrow">
-        <div class="rstat sm"><span class="k">Reduction</span><span id="mPct">&mdash;</span></div>
         <div class="rstat sm"><span class="k">Payment legs</span><span id="mLegs">&mdash;</span></div>
         <div class="rstat sm"><span class="k">Excluded</span><span id="mExcluded">&mdash;</span></div>
       </div>
@@ -80,18 +92,22 @@
   </section>
 
   <section id="proof">
-    <h2>Is the embedding layer necessary?</h2>
-    <p class="foot" style="margin:0 0 16px">
-      Fourteen labelled pairs run through two pipelines: deterministic string matching alone,
-      and string matching plus the on-device embedding layer. Same governance gate in both.
-      The safety metric is false merges. Computed live, on-device.
-    </p>
+    <div class="shead">
+      <div class="eyebrow">Evaluation &middot; 14 labelled pairs</div>
+      <h2>Is the embedding layer necessary?</h2>
+      <p class="sub">Deterministic string matching alone, against string matching plus the on-device
+      embedding. Same governance gate in both. The safety metric is false merges. Computed live, here.</p>
+    </div>
     <button class="runbtn" id="runAblation">Run evaluation<span class="ib" aria-hidden="true">&rarr;</span></button>
     <div id="ablationBody" style="margin-top:18px"><div class="empty">Not run yet.</div></div>
   </section>
 
   <section id="audit">
-    <h2>Audit log</h2>
+    <div class="shead">
+      <div class="eyebrow">Audit log &middot; spec &sect;10 format</div>
+      <h2><span class="qty" id="auditCount">0</span> decisions recorded</h2>
+      <p class="sub">Every authorization and refusal, with the evidence it rested on and the mapping version it froze.</p>
+    </div>
     <div id="auditLog" class="log"><div class="empty">No decisions recorded yet.</div></div>
   </section>
 </main>

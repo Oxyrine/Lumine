@@ -64,6 +64,15 @@
   --warn: #8a5a12;  --warn-pale: #f6edda;   /* REVIEW_REQUIRED — the hold */
   --neg: #b3261e;   --neg-pale: #f9e9e5;    /* KEEP_SEPARATE / payer / excluded */
 
+  /* Fixed steps, not clamp(). The phone column is 448px at every viewport by
+     construction, so fluid type would have nothing to respond to. */
+  --step--1: 12px;
+  --step-0:  16px;
+  --step-1:  19px;
+  --step-2:  24px;
+  --step-3:  32px;
+  --step-4:  44px;
+
   --display: "Schibsted Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --num: "IBM Plex Mono", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
@@ -137,13 +146,27 @@ main { padding: 16px 20px 40px; flex: 1; }
 section { display: none; }
 section.active { display: block; }
 
-/* uppercase mono system label */
-h2 {
-  font-family: var(--mono); font-size: 13px; font-weight: 400;
-  text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted);
-  margin: 6px 0 20px;
+/* Section head. Exactly one element per section sits at --step-3 or above;
+   everything else steps down hard. Before this, every screen led with the same
+   13px mono label, which is why they all read alike. */
+.shead { margin: 4px 0 22px; }
+.shead .eyebrow {
+  font-family: var(--mono); font-size: 11px; font-weight: 400;
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
 }
-h2 span { color: var(--ink); }
+.shead h2 {
+  font-family: var(--display); font-size: var(--step-3); font-weight: 500;
+  letter-spacing: -0.025em; line-height: 1.08; color: var(--ink);
+  margin: 10px 0 0; text-transform: none;
+}
+.shead h2 span { font-variant-numeric: tabular-nums; }
+.shead h2 .qty { font-family: var(--num); font-weight: 500; letter-spacing: -0.02em; }
+.shead .sub {
+  font-family: var(--sans); font-size: 14px; color: var(--slate);
+  margin-top: 10px; max-width: 36ch; line-height: 1.5;
+}
+/* Forms don't get a hero — the fields are the content. */
+.shead.quiet h2 { font-size: var(--step-1); letter-spacing: -0.01em; }
 
 /* 5 ------------------------------------------------------------- components */
 
@@ -275,9 +298,16 @@ textarea { resize: vertical; min-height: 48px; }
   border-radius: 12px; padding: 14px 16px;
 }
 
+/* One hero number, not three competing ones. The draft settlement volume is
+   the answer; gross and the reduction are the context that makes it mean
+   something, so they read as a sentence underneath rather than as peers. */
 .readout { margin-top: 8px; }
 .readout .rstat { display: flex; flex-direction: column; margin-bottom: 16px; }
 .readout .rstat .k { font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); margin-bottom: 6px; }
+.readout .lead { margin-bottom: 18px; }
+.readout .lead .big { font-size: var(--step-4); }
+.rdelta { font-size: 14px; color: var(--slate); margin-top: 10px; line-height: 1.5; }
+.rdelta b { font-family: var(--num); font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink-body); }
 .readout .rrow { display: flex; gap: 14px; border-top: 1px solid var(--hairline); padding-top: 14px; }
 .readout .rstat.sm { flex: 1; margin-bottom: 0; }
 .readout .rstat.sm span:last-child { font-family: var(--num); font-size: 20px; font-weight: 500; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--ink); }

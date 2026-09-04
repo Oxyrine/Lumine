@@ -264,6 +264,7 @@ setReadout(currentState(), false);
 // --------------------------------------------------------------------------
 function renderAudit() {
   const el = $("#auditLog");
+  $("#auditCount").textContent = String(auditLog.length);
   if (auditLog.length === 0) {
     setHTML(el, '<div class="empty">No decisions recorded yet.</div>');
     return;
