@@ -220,11 +220,12 @@ export function createGraph(container) {
         });
         gEdges.append(path);
         if (animate) {
-          // fade in (opacity is reliable across the display:none tab toggle;
-          // stroke-dashoffset draw-in was not)
+          // fade in — force a reflow so "0" commits as the start state, then
+          // transition to "1" synchronously. No rAF (throttled in bg tabs).
           path.style.opacity = "0";
-          path.style.transition = `opacity 420ms ease ${60 + idx * 35}ms`;
-          requestAnimationFrame(() => requestAnimationFrame(() => (path.style.opacity = "1")));
+          void path.getBoundingClientRect();
+          path.style.transition = `opacity 400ms ease ${50 + idx * 30}ms`;
+          path.style.opacity = "1";
         }
       });
     }
