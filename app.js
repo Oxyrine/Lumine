@@ -126,8 +126,8 @@ function openDetail(c) {
     `<div class="card">` +
     html`<div class="pair">${c.source.name}<span class="arrow">→</span>${c.candidate.name}</div>` +
     `<div class="scoreline">
-       <div class="scorepill"><span class="tag">AI confidence</span><b>${s.semantic.toFixed(2)}</b>model output</div>
-       <div class="scorepill"><span class="tag">Gate decision</span><b>${esc(LABEL[s.result.decision])}</b>deterministic rule</div>
+       <div class="scorepill"><span class="tag">AI confidence</span><b>${s.semantic.toFixed(2)}</b><em>model output</em></div>
+       <div class="scorepill"><span class="tag">Gate decision</span><b>${esc(LABEL[s.result.decision])}</b><em>deterministic rule</em></div>
      </div>
      <ul class="evidence">
        ${evLine(c.evidence.sameDomain, "Same corporate domain")}

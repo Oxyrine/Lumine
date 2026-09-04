@@ -83,7 +83,7 @@ export function createGraph(container) {
     id: "arrow", viewBox: "0 0 8 8", refX: "6.5", refY: "4",
     markerWidth: "7", markerHeight: "7", markerUnits: "userSpaceOnUse", orient: "auto",
   });
-  marker.append(el("path", { d: "M0 0.5 L8 4 L0 7.5 z", fill: "rgba(200,212,230,0.62)" }));
+  marker.append(el("path", { d: "M0 0.5 L8 4 L0 7.5 z", fill: "#93939f" }));
   defs.append(marker);
 
   const gEdges = el("g", { class: "edges" });
