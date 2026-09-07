@@ -253,7 +253,8 @@ Editorial-treasury system. White canvas, navy ink (`#0a2540`), one indigo voltag
 ## 19. Deliberately not built (brief §16)
 
 Stated on the Audit tab, not hidden:
-- Voice authorization; the second-approver tier
+- Voice authorization and camera intake (both on-device — see §20; scored dimensions, built on-site)
+- The second-approver tier
 - Snapdragon NPU delegate execution (WASM today)
 - Multi-currency netting (single-currency INR)
 - Real vendor-master / ERP integration (synthetic ledger)
@@ -266,11 +267,24 @@ For pre-shortlisting this list is a statement of judgment, not a gap.
 
 ## 20. The 30 hours
 
-1. Phone-first on the iQOO device; the final demonstration runs on it.
-2. Wire and verify the Snapdragon NPU delegate for the embedding step — hardware-accelerated, fully offline.
-3. Widen the fixture toward the full 48-case metrics set; publish real ablation numbers at scale.
-4. Reversal-of-approval flow + second-approver tier: a frozen mapping can be un-approved, the run recomputes, and the audit log records the reversal rather than erasing the original.
-5. Stretch: voice authorization.
+The finale rubric is six weighted dimensions; two of them (25% combined) are **automated device telemetry**, not jury judgment — "creative phone use" (camera / voice / on-device AI, 15%) and "Office Kit usage" (phone↔laptop bridge, 10%). The prototype covers on-device AI and nothing else on that axis, so the on-site work is deliberately weighted toward it.
+
+**Hardware & telemetry (targets the 25% the prototype does not touch)**
+
+1. **Phone-first on the iQOO device.** The final demonstration runs on it; all development testing happens on-device via the phone↔laptop bridge.
+2. **Snapdragon NPU delegate** for the embedding step — hardware-accelerated, fully offline. Highest-risk item and the whole of "real use of the hardware" (15% technical-depth sub-criterion) rides on it landing.
+3. **Camera intake.** Photograph a settlement advice / invoice → on-device OCR → counterparty name and context extracted into the pipeline. Hits "creative phone use", and gives the product a real data-entry path rather than typed fixtures — which also helps "would someone keep using it" (30%).
+4. **Voice authorization.** Promoted from stretch. The analyst speaks "approve" or "keep separate"; the utterance is transcribed on-device, the decision applied, and the audit line records that it was a voice authorization. Fits the governance thesis exactly — authorization is a deliberate, logged act — and hits "creative phone use".
+5. **Office Kit throughout.** Screen-mirror the phone to the laptop for testing, cross-device clipboard for pasting test pairs, file transfer for build artifacts. No product change — a usage metric satisfied by working the way the kit intends.
+
+**Product depth (targets end-product quality, novelty, technical depth)**
+
+6. Widen the fixture toward the full 48-case metrics set; publish real ablation numbers at scale.
+7. Reversal-of-approval flow + second-approver tier: a frozen mapping can be un-approved, the run recomputes, and the audit log records the reversal rather than erasing the original.
+
+**Presentation**
+
+8. Expand the ~100-second demo script to a 3–5 minute pitch: the misdirected-payment stakes, the gate walkthrough live on the phone, the ablation, the NPU proof, the honest-scope close.
 
 ---
 
