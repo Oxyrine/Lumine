@@ -326,6 +326,44 @@ function keepSeparate(c, s) {
   renderAudit(); renderQueue(); refreshNettingNumbers();
 }
 
+// A human can be wrong, or change their mind — reversal is how "humans
+// authorize" stays meaningful rather than one-way. Never edits history:
+// the original entry is marked reversed (rendered struck-through, never
+// removed) and a new entry is appended recording the reversal itself.
+function reverseDecision(entry) {
+  if (entry.reversed || !isReversible(entry)) return;
+  entry.reversed = true;
+
+  if (entry.kind === "approve") {
+    delete mapping[entry.counterpartyId];
+    mappingVersion += 1;
+    logDecision("reverse-approve", {
+      caseId: entry.caseId,
+      counterpartyId: entry.counterpartyId,
+      text:
+        `Match #${entry.caseId} reversed by Analyst A at ${nowIST()}\n` +
+        `Reversal of decision #${entry.seq} (approval)\n` +
+        `Result: mapping unfrozen (v${mappingVersion}); obligation returns to the review queue`,
+    });
+  } else if (entry.kind === "separate") {
+    decidedSeparate.delete(entry.caseId);
+    logDecision("reverse-separate", {
+      caseId: entry.caseId,
+      text:
+        `Match #${entry.caseId} reversed by Analyst A at ${nowIST()}\n` +
+        `Reversal of decision #${entry.seq} (keep-separate)\n` +
+        `Result: obligation returns to the review queue`,
+    });
+  }
+  renderAudit(); renderQueue(); refreshNettingNumbers();
+}
+
+// Only an original approve/separate can be undone — not a reversal itself,
+// and not one already reversed.
+function isReversible(entry) {
+  return (entry.kind === "approve" || entry.kind === "separate") && !entry.reversed;
+}
+
 // --------------------------------------------------------------------------
 // netting
 // --------------------------------------------------------------------------
@@ -424,8 +462,18 @@ function renderAudit() {
     el.replaceChildren();
     for (const entry of auditLog) {
       const d = document.createElement("div");
-      if (entry.reversed) d.classList.add("reversed");
-      d.textContent = entry.text;      // audit lines rendered as text, never markup
+      d.className = "audit-entry" + (entry.reversed ? " reversed" : "");
+      const t = document.createElement("div");
+      t.className = "audit-text";
+      t.textContent = entry.text;      // audit lines rendered as text, never markup
+      d.appendChild(t);
+      if (isReversible(entry)) {
+        const undo = document.createElement("button");
+        undo.className = "audit-undo";
+        undo.textContent = "Undo";
+        undo.onclick = () => reverseDecision(entry);
+        d.appendChild(undo);
+      }
       el.appendChild(d);
     }
   });

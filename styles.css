@@ -472,8 +472,18 @@ textarea { resize: vertical; min-height: 48px; }
 .readout .rstat.sm span:last-child { font-family: var(--num); font-size: 20px; font-weight: 500; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--ink); }
 
 .log { font-size: 13px; font-family: var(--mono); color: var(--ink-body); }
-.log div { padding: 12px 0; border-bottom: 1px solid var(--hairline); white-space: pre-wrap; }
+.log > div { padding: 12px 0; border-bottom: 1px solid var(--hairline); white-space: pre-wrap; }
 .empty { color: var(--muted); font-size: 14px; padding: 28px 0; text-align: center; }
+
+.audit-entry { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.audit-text { white-space: pre-wrap; }
+.audit-entry.reversed .audit-text { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--hairline); }
+.audit-undo {
+  flex: none; font-family: var(--sans); font-size: 11px; font-weight: 500;
+  color: var(--neg); background: transparent; border: 1px solid var(--hairline);
+  border-radius: 999px; padding: 4px 12px; cursor: pointer;
+}
+.audit-undo:hover { border-color: var(--neg); }
 
 /* guided demo */
 .demo-card { border-color: var(--accent); }

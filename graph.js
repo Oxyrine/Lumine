@@ -144,6 +144,11 @@ export function createGraph(container) {
     lastPositions = positions;
     const mappingKeys = new Set(Object.keys(mapping));
     const newlyMerged = [...mappingKeys].filter((k) => !prevMappingKeys.has(k));
+    // A reversed approval drops a key out of `mapping`; the node's own transform/
+    // opacity/r already recompute correctly from `mapping` below (merged becomes
+    // false, nodePos resolves back to its own LAYOUT slot) — the only thing
+    // missing without this is the caption staying silent on the reversal.
+    const newlyUnmerged = [...prevMappingKeys].filter((k) => !mappingKeys.has(k));
     const active = [...ENTITIES, ...UNRESOLVED];
 
     // ---- nodes ----
@@ -238,6 +243,8 @@ export function createGraph(container) {
     firstPaint = false;
     if (newlyMerged.length) {
       caption.textContent = `${newlyMerged.map((k) => NODE_LABELS[k] || k).join(", ")} merged into the run. Net positions and settlement volume updated.`;
+    } else if (newlyUnmerged.length) {
+      caption.textContent = `${newlyUnmerged.map((k) => NODE_LABELS[k] || k).join(", ")} reversed — back on its own in the run.`;
     }
   }
 
