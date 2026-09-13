@@ -9,7 +9,20 @@ import { createScatter } from "./scatter.js";
 // --------------------------------------------------------------------------
 const resolved = new Set(ENTITIES);
 const mapping = {};                 // approved counterparty id -> canonical entity
-const auditLog = [];
+const auditLog = [];         // [{ seq, kind, caseId, counterpartyId, actor, text, reversed }], newest first
+let auditSeq = 0;
+
+// Every decision — approve, keep-separate, and later a reversal or a
+// dual-control step — goes through here so the log has one shape. `text` is
+// the full multi-line line already rendered as plain text (never markup);
+// the structured fields exist so a later entry can find and mark an earlier
+// one reversed without re-parsing rendered strings.
+function logDecision(kind, { caseId = null, counterpartyId = null, actor = "Analyst A", text }) {
+  auditSeq += 1;
+  const entry = { seq: auditSeq, kind, caseId, counterpartyId, actor, text, reversed: false };
+  auditLog.unshift(entry);
+  return entry;
+}
 const scored = new Map();           // case id -> { fuzzy, semantic, idStatus, result }
 const decidedSeparate = new Set();
 let mappingVersion = 0;
@@ -290,21 +303,26 @@ function approve(c, s) {
   mapping[c.counterpartyId] = c.canonicalEntity;
   const flags = corroboratingFlags(c.evidence);
   const semanticText = s.semantic == null ? "not used (identifier decided)" : s.semantic.toFixed(2);
-  auditLog.unshift(
-    `Match #${c.id} approved by Analyst A at ${nowIST()}\n` +
-    `Evidence: semantic ${semanticText}, ${flags.length ? flags.join(", ") : "no corroborating context"}, ID ${s.idStatus}\n` +
-    `Result: mapping frozen (v${mappingVersion}) for netting run #2026-09-13-A`
-  );
+  logDecision("approve", {
+    caseId: c.id,
+    counterpartyId: c.counterpartyId,
+    text:
+      `Match #${c.id} approved by Analyst A at ${nowIST()}\n` +
+      `Evidence: semantic ${semanticText}, ${flags.length ? flags.join(", ") : "no corroborating context"}, ID ${s.idStatus}\n` +
+      `Result: mapping frozen (v${mappingVersion}) for netting run #2026-09-13-A`,
+  });
   renderAudit(); renderQueue(); refreshNettingNumbers();
 }
 
 function keepSeparate(c, s) {
   decidedSeparate.add(c.id);
-  auditLog.unshift(
-    `Match #${c.id} kept separate by Analyst A at ${nowIST()}\n` +
-    `Reason: ${s.result.reason}\n` +
-    `Result: obligation excluded from netting run #2026-09-13-A`
-  );
+  logDecision("separate", {
+    caseId: c.id,
+    text:
+      `Match #${c.id} kept separate by Analyst A at ${nowIST()}\n` +
+      `Reason: ${s.result.reason}\n` +
+      `Result: obligation excluded from netting run #2026-09-13-A`,
+  });
   renderAudit(); renderQueue(); refreshNettingNumbers();
 }
 
@@ -404,9 +422,10 @@ function renderAudit() {
       return;
     }
     el.replaceChildren();
-    for (const line of auditLog) {
+    for (const entry of auditLog) {
       const d = document.createElement("div");
-      d.textContent = line;      // audit lines rendered as text, never markup
+      if (entry.reversed) d.classList.add("reversed");
+      d.textContent = entry.text;      // audit lines rendered as text, never markup
       el.appendChild(d);
     }
   });
@@ -567,9 +586,9 @@ function demoNext() {
 // --------------------------------------------------------------------------
 async function runAblation() {
   const out = $("#ablationBody");
-  setHTML(out, `<div class="empty">Running ${ABLATION_CASES.length} labelled pairs on-device…</div>`);
   const rows = [];
   for (const t of ABLATION_CASES) {
+    setHTML(out, `<div class="empty">Running pair ${rows.length + 1} of ${ABLATION_CASES.length} on-device…</div>`);
     const fuzzy = fuzzyScore(t.a.name, t.b.name);
     const semantic = await semanticScore(t.a, t.b);
     const idStatus = t.id === "match" ? "match" : t.id === "conflict" ? "conflict" : "absent";

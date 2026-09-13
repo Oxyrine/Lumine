@@ -37,10 +37,17 @@ export function isReady() {
   return extractor != null;
 }
 
+// Same name+context string recurs across the review cases, Live re-runs, and
+// (especially) the ablation set, so cache by exact string rather than
+// re-embedding it every call.
+const embedCache = new Map(); // text -> Float32Array
+
 async function embed(text) {
+  if (embedCache.has(text)) return embedCache.get(text);
   const e = await loadModel();
   const out = await e(text, { pooling: "mean", normalize: true });
-  return out.data; // Float32Array, already L2-normalized
+  embedCache.set(text, out.data); // Float32Array, already L2-normalized
+  return out.data;
 }
 
 export function cosine(a, b) {
