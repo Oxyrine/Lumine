@@ -289,9 +289,10 @@ function approve(c, s) {
   mappingVersion += 1;
   mapping[c.counterpartyId] = c.canonicalEntity;
   const flags = corroboratingFlags(c.evidence);
+  const semanticText = s.semantic == null ? "not used (identifier decided)" : s.semantic.toFixed(2);
   auditLog.unshift(
     `Match #${c.id} approved by Analyst A at ${nowIST()}\n` +
-    `Evidence: semantic ${s.semantic.toFixed(2)}, ${flags.length ? flags.join(", ") : "no corroborating context"}, ID ${s.idStatus}\n` +
+    `Evidence: semantic ${semanticText}, ${flags.length ? flags.join(", ") : "no corroborating context"}, ID ${s.idStatus}\n` +
     `Result: mapping frozen (v${mappingVersion}) for netting run #2026-09-13-A`
   );
   renderAudit(); renderQueue(); refreshNettingNumbers();
@@ -564,7 +565,6 @@ function demoNext() {
 // --------------------------------------------------------------------------
 // ablation — does the embedding layer earn its place? (spec §12)
 // --------------------------------------------------------------------------
-let ablationRun = false;
 async function runAblation() {
   const out = $("#ablationBody");
   setHTML(out, `<div class="empty">Running ${ABLATION_CASES.length} labelled pairs on-device…</div>`);
@@ -583,7 +583,6 @@ async function runAblation() {
     });
   }
   const r = scoreAblation(rows);
-  ablationRun = true;
 
   const cell = (n, danger) => `<td class="${danger && n > 0 ? "bad" : n === 0 ? "ok" : ""}">${n}</td>`;
   const pct = (x) => Math.round(x * 100) + "%";
