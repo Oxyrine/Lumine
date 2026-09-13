@@ -132,13 +132,14 @@ header {
 .dot.cut { background: var(--neg); }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
-#netCut {
+#netCut, #actorSwitch {
   margin-top: 12px; padding: 7px 14px; border-radius: 999px;
   font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
   background: transparent; color: var(--ink); border: 1px solid var(--hairline); cursor: pointer;
 }
 #netCut:disabled { opacity: 0.4; cursor: default; }
 #netCut.cut { background: var(--neg); color: #fff; border-color: var(--neg); }
+#actorSwitch { margin-left: 8px; }
 
 /* pill-outline tab row — editorial, active pill in the brand indigo */
 nav {
@@ -362,6 +363,11 @@ body.boot-open { position: fixed; inset: 0; width: 100%; overflow: hidden; }
 .badge.REVIEW_REQUIRED { background: var(--warn-pale); color: var(--warn); }
 .badge.KEEP_SEPARATE { background: var(--neg-pale); color: var(--neg); }
 .badge.pending { background: var(--surface-inset); color: var(--slate); }
+
+.dual-note {
+  font-family: var(--mono); font-size: 11px; color: var(--warn);
+  margin-top: 10px; line-height: 1.5;
+}
 
 .scoreline { display: flex; gap: 10px; margin: 16px 0 6px; flex-wrap: wrap; }
 .scorepill {

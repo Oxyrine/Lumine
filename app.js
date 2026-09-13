@@ -1,4 +1,4 @@
-import { fuzzyScore, idCheck, gate, whyText, net, corroboratingFlags, ablationRoute, scoreAblation } from "./pipeline.js";
+import { fuzzyScore, idCheck, gate, whyText, net, corroboratingFlags, ablationRoute, scoreAblation, exposureOf, DUAL_CONTROL_THRESHOLD } from "./pipeline.js";
 import { semanticScore, loadModel, isReady } from "./embed.js";
 import { CASES, ENTITIES, OBLIGATIONS, ABLATION_CASES } from "./fixture.js";
 import { createGraph } from "./graph.js";
@@ -26,6 +26,8 @@ function logDecision(kind, { caseId = null, counterpartyId = null, actor = "Anal
 const scored = new Map();           // case id -> { fuzzy, semantic, idStatus, result }
 const decidedSeparate = new Set();
 let mappingVersion = 0;
+let currentActor = "Analyst A";               // who's driving the app right now
+const pendingApproval = {};                   // counterpartyId -> { by, caseId } — first sign-off, awaiting a different analyst's counter-approval
 const demo = { on: false, step: 0 };
 
 const $ = (s) => document.querySelector(s);
@@ -178,6 +180,17 @@ function startModel() {
 startModel();
 $("#netCut").onclick = () => setNetwork(!networkCut);
 
+// Who's driving right now — the only lever a dual-control counter-approval
+// actually needs. Switching bounces back to the queue list (not whatever
+// detail view was open), so re-opening a pending case always reflects
+// whichever actor is current.
+function setActor(actor) {
+  currentActor = actor;
+  $("#actorSwitch").textContent = actor;
+  renderQueue();
+}
+$("#actorSwitch").onclick = () => setActor(currentActor === "Analyst A" ? "Analyst B" : "Analyst A");
+
 // --------------------------------------------------------------------------
 // review queue
 // --------------------------------------------------------------------------
@@ -204,10 +217,12 @@ function renderQueue() {
     const card = document.createElement("div");
     card.className = "card tap reveal";
     card.style.setProperty("--i", i);
+    const pending = pendingApproval[c.counterpartyId];
     setHTML(card,
       html`<div class="pair">${c.source.name}<span class="arrow">↔</span>${c.candidate.name}</div>
            <div class="sub">${s ? scoreSummary(s) : "scoring locally…"}</div>` +
-      `<span class="badge ${s ? s.result.decision : "pending"}">${s ? esc(LABEL[s.result.decision]) : "pending"}</span>`
+      `<span class="badge ${s ? s.result.decision : "pending"}">${s ? esc(LABEL[s.result.decision]) : "pending"}</span>` +
+      (pending ? html`<div class="dual-note">⏳ first approval by ${pending.by} — needs counter-approval from a different analyst</div>` : "")
     );
     if (s) card.onclick = () => openDetail(c);
     q.appendChild(card);
@@ -266,6 +281,20 @@ function openDetail(c) {
     : s.idStatus === "conflict" ? "Authoritative ID: CONFLICT"
     : "No authoritative identifier on file";
 
+  const exposure = exposureOf(OBLIGATIONS, c.counterpartyId);
+  const pending = pendingApproval[c.counterpartyId];
+  const needsDual = s.result.decision !== "KEEP_SEPARATE" && exposure >= DUAL_CONTROL_THRESHOLD;
+  const sameActorPending = needsDual && pending && pending.by === currentActor;
+  const dualNoteText = !needsDual ? null
+    : pending
+      ? (sameActorPending
+          ? `Exposure ${fmtINR(exposure)} needs a second analyst. You (${currentActor}) already gave the first approval — switch analyst to counter-approve.`
+          : `Exposure ${fmtINR(exposure)} needs a second analyst. First approval by ${pending.by} — approving now as ${currentActor} will freeze the mapping.`)
+      : `Exposure ${fmtINR(exposure)} exceeds the dual-control threshold (${fmtINR(DUAL_CONTROL_THRESHOLD)}) — this merge needs a second analyst's counter-approval.`;
+  const approveLabel = !needsDual ? (s.result.decision === "AUTO_MERGE" ? "Confirm merge" : "Approve match")
+    : pending ? (sameActorPending ? "Awaiting 2nd analyst" : "Counter-approve (2nd analyst)")
+    : "Record 1st approval";
+
   setHTML(q,
     `<div class="card">` +
     html`<div class="pair">${c.source.name}<span class="arrow">→</span>${c.candidate.name}</div>` +
@@ -287,8 +316,9 @@ function openDetail(c) {
      </div>
      <div class="actions">
        <button class="btn-separate ${s.result.decision === "KEEP_SEPARATE" ? "primary" : ""}" id="dSep">Keep separate</button>
-       <button class="btn-approve ${s.result.decision === "KEEP_SEPARATE" ? "" : "primary"}" id="dApp">${s.result.decision === "AUTO_MERGE" ? "Confirm merge" : "Approve match"}</button>
+       <button class="btn-approve ${s.result.decision === "KEEP_SEPARATE" ? "" : "primary"}" id="dApp"${sameActorPending ? " disabled" : ""}>${approveLabel}</button>
      </div>` +
+    (dualNoteText ? html`<div class="foot" style="margin:14px 0 0">${dualNoteText}</div>` : "") +
     html`<div class="sub" style="margin-top:10px">${s.result.reason}</div>` +
     `</div>
      <button class="runbtn ghost" id="backBtn">Back to queue</button>`
@@ -298,7 +328,46 @@ function openDetail(c) {
   $("#dSep").onclick = () => keepSeparate(c, s);
 }
 
+// Dual control: a merge material enough to matter needs a second analyst's
+// sign-off before it freezes. The first call records intent only — mapping
+// is untouched until a *different* actor counter-approves.
 function approve(c, s) {
+  const exposure = exposureOf(OBLIGATIONS, c.counterpartyId);
+  if (exposure >= DUAL_CONTROL_THRESHOLD) {
+    const pending = pendingApproval[c.counterpartyId];
+    if (!pending) {
+      pendingApproval[c.counterpartyId] = { by: currentActor, caseId: c.id };
+      logDecision("pending-approval", {
+        caseId: c.id,
+        counterpartyId: c.counterpartyId,
+        actor: currentActor,
+        text:
+          `Match #${c.id} approved by ${currentActor} at ${nowIST()}\n` +
+          `Exposure ${fmtINR(exposure)} exceeds the dual-control threshold (${fmtINR(DUAL_CONTROL_THRESHOLD)})\n` +
+          `Result: awaiting counter-approval from a second analyst before the mapping freezes`,
+      });
+      renderAudit(); renderQueue();
+      return;
+    }
+    if (pending.by === currentActor) {
+      alert(`${currentActor} already gave the first approval for this match. A different analyst must counter-approve.`);
+      return;
+    }
+    delete pendingApproval[c.counterpartyId];
+    mappingVersion += 1;
+    mapping[c.counterpartyId] = c.canonicalEntity;
+    logDecision("counter-approve", {
+      caseId: c.id,
+      counterpartyId: c.counterpartyId,
+      actor: currentActor,
+      text:
+        `Match #${c.id} counter-approved by ${currentActor} at ${nowIST()} (first approval: ${pending.by})\n` +
+        `Result: mapping frozen (v${mappingVersion}) for netting run #2026-09-13-A`,
+    });
+    renderAudit(); renderQueue(); refreshNettingNumbers();
+    return;
+  }
+
   mappingVersion += 1;
   mapping[c.counterpartyId] = c.canonicalEntity;
   const flags = corroboratingFlags(c.evidence);
@@ -307,7 +376,7 @@ function approve(c, s) {
     caseId: c.id,
     counterpartyId: c.counterpartyId,
     text:
-      `Match #${c.id} approved by Analyst A at ${nowIST()}\n` +
+      `Match #${c.id} approved by ${currentActor} at ${nowIST()}\n` +
       `Evidence: semantic ${semanticText}, ${flags.length ? flags.join(", ") : "no corroborating context"}, ID ${s.idStatus}\n` +
       `Result: mapping frozen (v${mappingVersion}) for netting run #2026-09-13-A`,
   });
@@ -319,7 +388,7 @@ function keepSeparate(c, s) {
   logDecision("separate", {
     caseId: c.id,
     text:
-      `Match #${c.id} kept separate by Analyst A at ${nowIST()}\n` +
+      `Match #${c.id} kept separate by ${currentActor} at ${nowIST()}\n` +
       `Reason: ${s.result.reason}\n` +
       `Result: obligation excluded from netting run #2026-09-13-A`,
   });
@@ -334,15 +403,15 @@ function reverseDecision(entry) {
   if (entry.reversed || !isReversible(entry)) return;
   entry.reversed = true;
 
-  if (entry.kind === "approve") {
+  if (entry.kind === "approve" || entry.kind === "counter-approve") {
     delete mapping[entry.counterpartyId];
     mappingVersion += 1;
     logDecision("reverse-approve", {
       caseId: entry.caseId,
       counterpartyId: entry.counterpartyId,
       text:
-        `Match #${entry.caseId} reversed by Analyst A at ${nowIST()}\n` +
-        `Reversal of decision #${entry.seq} (approval)\n` +
+        `Match #${entry.caseId} reversed by ${currentActor} at ${nowIST()}\n` +
+        `Reversal of decision #${entry.seq} (${entry.kind === "counter-approve" ? "dual-control approval" : "approval"})\n` +
         `Result: mapping unfrozen (v${mappingVersion}); obligation returns to the review queue`,
     });
   } else if (entry.kind === "separate") {
@@ -350,7 +419,7 @@ function reverseDecision(entry) {
     logDecision("reverse-separate", {
       caseId: entry.caseId,
       text:
-        `Match #${entry.caseId} reversed by Analyst A at ${nowIST()}\n` +
+        `Match #${entry.caseId} reversed by ${currentActor} at ${nowIST()}\n` +
         `Reversal of decision #${entry.seq} (keep-separate)\n` +
         `Result: obligation returns to the review queue`,
     });
@@ -358,10 +427,11 @@ function reverseDecision(entry) {
   renderAudit(); renderQueue(); refreshNettingNumbers();
 }
 
-// Only an original approve/separate can be undone — not a reversal itself,
-// and not one already reversed.
+// Only an original approve/counter-approve/separate can be undone — not a
+// reversal itself, not a still-pending first sign-off, and not one already
+// reversed.
 function isReversible(entry) {
-  return (entry.kind === "approve" || entry.kind === "separate") && !entry.reversed;
+  return (entry.kind === "approve" || entry.kind === "counter-approve" || entry.kind === "separate") && !entry.reversed;
 }
 
 // --------------------------------------------------------------------------
@@ -622,7 +692,19 @@ function demoNext() {
   if (prev && prev.caseId) {
     const c = CASES.find((x) => x.id === prev.caseId);
     const s = scored.get(c.id);
-    if (prev.act === "approve" && !mapping[c.counterpartyId]) approve(c, s);
+    if (prev.act === "approve" && !mapping[c.counterpartyId]) {
+      approve(c, s);
+      // Dual control: a first approval on a material identity only records
+      // intent (see approve()). Complete it as a second analyst so the
+      // scripted walkthrough still lands on the full merge its own outro
+      // describes, without the actor selector actually changing underfoot.
+      if (pendingApproval[c.counterpartyId]) {
+        const savedActor = currentActor;
+        currentActor = savedActor === "Analyst A" ? "Analyst B" : "Analyst A";
+        approve(c, s);
+        currentActor = savedActor;
+      }
+    }
     if (prev.act === "separate" && !decidedSeparate.has(c.id)) keepSeparate(c, s);
   }
   demo.step += 1;

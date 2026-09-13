@@ -195,6 +195,20 @@ export function whyText({ fuzzy, semanticScore, idStatus, evidence = {} }) {
 // Deterministic netting engine (spec §7)
 // ---------------------------------------------------------------------------
 
+// A counterparty's total exposure — the sum of every obligation that names it
+// on either side, before any mapping is applied. Used to decide whether a
+// merge is material enough to require a second approver (dual control), not
+// to compute the netting run itself.
+export function exposureOf(obligations, counterpartyId) {
+  return obligations
+    .filter((o) => o.from === counterpartyId || o.to === counterpartyId)
+    .reduce((sum, o) => sum + o.amount, 0);
+}
+
+// Exposure at or above this requires a second analyst's counter-approval
+// before a merge freezes (spec: dual control on material identities).
+export const DUAL_CONTROL_THRESHOLD = 5_00_000;
+
 // obligations: [{ id, from, to, amount }]  — from owes `to` `amount`
 // mapping: { [counterpartyId]: canonicalEntityId }  — approved merges
 // entities: canonical entity ids that are "resolved" (in the entity map)
