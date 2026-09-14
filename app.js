@@ -8,6 +8,10 @@ import { parseCSV, parseJSON, validateLedger, SAMPLE_CSV } from "./import.js";
 // --------------------------------------------------------------------------
 // state
 // --------------------------------------------------------------------------
+// The sample fixture's draft netting run id, shown in the Review and Netting
+// eyebrows and every audit line referencing that run. One constant so it
+// never drifts between the places it's written.
+const NETTING_RUN_ID = "2026-09-13-A";
 const resolved = new Set(ENTITIES);
 // net() offsets whatever obligations it's handed as if they were one currency,
 // so the two live netting-run call sites below must only ever see INR — the
@@ -373,7 +377,7 @@ function approve(c, s) {
       actor: currentActor,
       text:
         `Match #${c.id} counter-approved by ${currentActor} at ${nowIST()} (first approval: ${pending.by})\n` +
-        `Result: mapping frozen (v${mappingVersion}) for netting run #2026-09-13-A`,
+        `Result: mapping frozen (v${mappingVersion}) for netting run #${NETTING_RUN_ID}`,
     });
     renderAudit(); renderQueue(); refreshNettingNumbers();
     return;
@@ -389,7 +393,7 @@ function approve(c, s) {
     text:
       `Match #${c.id} approved by ${currentActor} at ${nowIST()}\n` +
       `Evidence: semantic ${semanticText}, ${flags.length ? flags.join(", ") : "no corroborating context"}, ID ${s.idStatus}\n` +
-      `Result: mapping frozen (v${mappingVersion}) for netting run #2026-09-13-A`,
+      `Result: mapping frozen (v${mappingVersion}) for netting run #${NETTING_RUN_ID}`,
   });
   renderAudit(); renderQueue(); refreshNettingNumbers();
 }
@@ -401,7 +405,7 @@ function keepSeparate(c, s) {
     text:
       `Match #${c.id} kept separate by ${currentActor} at ${nowIST()}\n` +
       `Reason: ${s.result.reason}\n` +
-      `Result: obligation excluded from netting run #2026-09-13-A`,
+      `Result: obligation excluded from netting run #${NETTING_RUN_ID}`,
   });
   renderAudit(); renderQueue(); refreshNettingNumbers();
 }
@@ -917,7 +921,7 @@ $("#importReset").onclick = () => {
   $("#importApply").disabled = true;
   renderImportErrors([]);
   renderImportPreview(null);
-  $("#nettingEyebrow").textContent = "Netting run · draft #2026-09-13-A";
+  $("#nettingEyebrow").textContent = `Netting run · draft #${NETTING_RUN_ID}`;
   logDecision("import", { actor: currentActor, text: `Ledger import reset by ${currentActor} at ${nowIST()}\nResult: netting run back on the sample fixture.` });
   renderAudit();
   refreshNettingNumbers();
