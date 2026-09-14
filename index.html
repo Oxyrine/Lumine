@@ -33,6 +33,7 @@
       <button data-tab="review" class="active">Review</button>
       <button data-tab="live">Live</button>
       <button data-tab="netting">Netting</button>
+      <button data-tab="import">Import</button>
       <button data-tab="proof">Proof</button>
       <button data-tab="audit">Audit</button>
     </nav>
@@ -90,7 +91,7 @@
 
       <section id="netting">
         <div class="shead">
-          <div class="eyebrow">Netting run &middot; draft #2026-09-13-A</div>
+          <div class="eyebrow" id="nettingEyebrow">Netting run &middot; draft #2026-09-13-A</div>
         </div>
         <div id="graphSlotMobile"></div>
         <p class="graph-elsewhere">Graph shown alongside &rarr;</p>
@@ -113,9 +114,34 @@
         <div class="shead quiet" style="margin-top:28px">
           <div class="eyebrow">By currency</div>
           <h2 style="font-size:1.1rem">Every currency in the ledger</h2>
-          <p class="sub">The draft above is the INR run. Other currencies net only against themselves.</p>
+          <p class="sub">The draft above is this run's INR total. Other currencies net only against themselves.</p>
         </div>
         <div id="currencyBreakdown"></div>
+      </section>
+
+      <section id="import">
+        <div class="shead quiet">
+          <div class="eyebrow">Ledger import</div>
+          <h2>Bring your own settlement ledger</h2>
+          <p class="sub">CSV or JSON, parsed and validated entirely on-device &mdash; nothing leaves the browser.
+          Replaces the sample netting run on the Netting tab until you reset it.</p>
+        </div>
+        <div class="card">
+          <label>Ledger file (.csv or .json)</label>
+          <input type="file" id="importFile" accept=".csv,.json,text/csv,application/json" />
+          <div class="foot" style="margin-top:10px">
+            CSV columns: <code>id,from,to,amount,currency</code> (currency optional, defaults to INR;
+            entities are taken from the from/to columns). JSON: <code>{ "obligations": [...] }</code>,
+            optionally with an <code>"entities"</code> roster to validate unknown ids against.
+          </div>
+          <div id="importErrors"></div>
+          <div id="importPreview"><div class="empty">Nothing loaded yet.</div></div>
+          <div class="actions" style="margin-top:14px">
+            <button class="btn-separate" id="importSample">Load sample CSV</button>
+            <button class="btn-approve primary" id="importApply" disabled>Apply to netting run</button>
+          </div>
+          <button class="runbtn ghost" id="importReset" style="margin-top:10px">Reset to sample ledger</button>
+        </div>
       </section>
 
       <section id="proof">

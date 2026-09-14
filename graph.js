@@ -2,7 +2,7 @@
 // Entities sit on a ring; unresolved counterparties float below until an
 // approved mapping pulls them in. Renders SVG, animates between states.
 
-import { ENTITIES, NODE_LABELS, UNRESOLVED } from "./fixture.js";
+import { ENTITIES as DEFAULT_ENTITIES, NODE_LABELS as DEFAULT_NODE_LABELS, UNRESOLVED as DEFAULT_UNRESOLVED } from "./fixture.js";
 
 const NS = "http://www.w3.org/2000/svg";
 const VB = { w: 360, h: 374 };
@@ -16,19 +16,18 @@ const el = (name, attrs = {}) => {
   return n;
 };
 
-// Fixed layout positions, computed once.
-const LAYOUT = (() => {
+function computeLayout(entities, unresolved) {
   const pos = {};
-  ENTITIES.forEach((id, i) => {
-    const a = (-90 + i * (360 / ENTITIES.length)) * (Math.PI / 180);
+  entities.forEach((id, i) => {
+    const a = (-90 + i * (360 / entities.length)) * (Math.PI / 180);
     pos[id] = { x: RING.cx + RING.r * Math.cos(a), y: RING.cy + RING.r * Math.sin(a) };
   });
-  UNRESOLVED.forEach((id, i) => {
+  unresolved.forEach((id, i) => {
     const span = VB.w - 100;
-    pos[id] = { x: 50 + (span * (i + 0.5)) / UNRESOLVED.length, y: FLOAT_Y };
+    pos[id] = { x: 50 + (span * (i + 0.5)) / unresolved.length, y: FLOAT_Y };
   });
   return pos;
-})();
+}
 
 const lakh = (n) => {
   const v = n / 1e5;
@@ -75,6 +74,11 @@ function tween(setter, from, to, dur) {
 }
 
 export function createGraph(container) {
+  let entities = DEFAULT_ENTITIES;
+  let unresolved = DEFAULT_UNRESOLVED;
+  let nodeLabels = DEFAULT_NODE_LABELS;
+  let LAYOUT = computeLayout(entities, unresolved);
+
   container.replaceChildren();
   const svg = el("svg", { viewBox: `0 0 ${VB.w} ${VB.h}`, class: "netgraph" });
 
@@ -117,21 +121,21 @@ export function createGraph(container) {
     // centre so it clears the arcs that hug the perimeter
     const p0 = LAYOUT[id];
     let lx = 0, ly = NODE_R + 15;
-    if (ENTITIES.includes(id)) {
+    if (entities.includes(id)) {
       const dx = p0.x - RING.cx, dy = p0.y - RING.cy;
       const d = Math.hypot(dx, dy) || 1;
       lx = (dx / d) * (NODE_R + 13);
       ly = (dy / d) * (NODE_R + 13) + 3;
     }
     const label = el("text", { class: "nlabel", "text-anchor": "middle", x: lx, y: ly });
-    label.textContent = NODE_LABELS[id] || id;
+    label.textContent = nodeLabels[id] || id;
     g.append(circle, valText, label);
     g.addEventListener("click", () => {
       const pos = lastPositions[id];
       caption.textContent =
         pos == null
-          ? `${NODE_LABELS[id] || id}: not in the netting run (identity unresolved)`
-          : `${NODE_LABELS[id] || id}: net position ${lakh(pos)}  (${pos >= 0 ? "net receiver" : "net payer"})`;
+          ? `${nodeLabels[id] || id}: not in the netting run (identity unresolved)`
+          : `${nodeLabels[id] || id}: net position ${lakh(pos)}  (${pos >= 0 ? "net receiver" : "net payer"})`;
     });
     gNodes.append(g);
     const rec = { g, circle, valText };
@@ -149,7 +153,7 @@ export function createGraph(container) {
     // false, nodePos resolves back to its own LAYOUT slot) — the only thing
     // missing without this is the caption staying silent on the reversal.
     const newlyUnmerged = [...prevMappingKeys].filter((k) => !mappingKeys.has(k));
-    const active = [...ENTITIES, ...UNRESOLVED];
+    const active = [...entities, ...unresolved];
 
     // ---- nodes ----
     active.forEach((id, i) => {
@@ -242,11 +246,30 @@ export function createGraph(container) {
     prevMappingKeys = mappingKeys;
     firstPaint = false;
     if (newlyMerged.length) {
-      caption.textContent = `${newlyMerged.map((k) => NODE_LABELS[k] || k).join(", ")} merged into the run. Net positions and settlement volume updated.`;
+      caption.textContent = `${newlyMerged.map((k) => nodeLabels[k] || k).join(", ")} merged into the run. Net positions and settlement volume updated.`;
     } else if (newlyUnmerged.length) {
-      caption.textContent = `${newlyUnmerged.map((k) => NODE_LABELS[k] || k).join(", ")} reversed — back on its own in the run.`;
+      caption.textContent = `${newlyUnmerged.map((k) => nodeLabels[k] || k).join(", ")} reversed — back on its own in the run.`;
     }
   }
 
-  return { render };
+  // Swaps in a new set of entities/unresolved counterparties/labels (an
+  // imported ledger) and forces a full rebuild — a new topology invalidates
+  // every existing node's position and the ring layout itself, so there is
+  // nothing salvageable from the previous DOM/state to diff against.
+  function setTopology({ entities: e, unresolved: u, labels: l }) {
+    entities = e;
+    unresolved = u;
+    nodeLabels = l;
+    LAYOUT = computeLayout(entities, unresolved);
+    nodeEls.clear();
+    gNodes.replaceChildren();
+    gEdges.replaceChildren();
+    prevMappingKeys = new Set();
+    lastEdgeKey = "";
+    firstPaint = true;
+    lastPositions = {};
+    caption.textContent = "Tap a node for its net position.";
+  }
+
+  return { render, setTopology };
 }

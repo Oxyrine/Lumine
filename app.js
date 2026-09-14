@@ -1,8 +1,9 @@
 import { fuzzyScore, idCheck, gate, whyText, net, corroboratingFlags, ablationRoute, scoreAblation, exposureOf, DUAL_CONTROL_THRESHOLD, netByCurrency } from "./pipeline.js";
 import { semanticScore, loadModel, isReady } from "./embed.js";
-import { CASES, ENTITIES, OBLIGATIONS, ABLATION_CASES } from "./fixture.js";
+import { CASES, ENTITIES, NODE_LABELS, UNRESOLVED, OBLIGATIONS, ABLATION_CASES } from "./fixture.js";
 import { createGraph } from "./graph.js";
 import { createScatter } from "./scatter.js";
+import { parseCSV, parseJSON, validateLedger, SAMPLE_CSV } from "./import.js";
 
 // --------------------------------------------------------------------------
 // state
@@ -34,6 +35,9 @@ let mappingVersion = 0;
 let currentActor = "Analyst A";               // who's driving the app right now
 const pendingApproval = {};                   // counterpartyId -> { by, caseId } — first sign-off, awaiting a different analyst's counter-approval
 const demo = { on: false, step: 0 };
+// An applied ledger import: { obligations: [{id,from,to,amount,currency}], entities: [{id,label}] }.
+// null means the Netting tab and graph show the sample fixture's run.
+let importedLedger = null;
 
 const $ = (s) => document.querySelector(s);
 const CURRENCY_SYMBOL = { INR: "₹", USD: "$", EUR: "€", AED: "AED " };
@@ -279,7 +283,7 @@ function evLine(ok, text) {
 function openDetail(c) {
   const s = scored.get(c.id);
   const q = $("#queue");
-  const before = currentNet();
+  const before = sampleNet();
   const trial = net(inrObligations, { ...mapping, [c.counterpartyId]: c.canonicalEntity }, resolved);
   const dVol = before.netSettlementVolume - trial.netSettlementVolume;
   const dLegs = before.legsAfter - trial.legsAfter;
@@ -444,8 +448,21 @@ function isReversible(entry) {
 // --------------------------------------------------------------------------
 // netting
 // --------------------------------------------------------------------------
-function currentNet() { return net(inrObligations, mapping, resolved); }
-function currentState() { return { ...currentNet(), mapping: { ...mapping } }; }
+// The sample ledger's own run — always computed against the built-in fixture,
+// regardless of whether an imported ledger is currently on screen. openDetail
+// previews the governance demo's queue against this, never the import.
+function sampleNet() { return net(inrObligations, mapping, resolved); }
+
+// What the Netting tab and graph actually display: the imported ledger once
+// one is applied (its entities are pre-resolved by definition — an imported
+// row names an entity directly, there's nothing left to approve), else the
+// sample run.
+function currentNet() {
+  return importedLedger
+    ? net(importedLedger.obligations.filter((o) => o.currency === "INR"), {}, new Set(importedLedger.entities.map((e) => e.id)))
+    : sampleNet();
+}
+function currentState() { return { ...currentNet(), mapping: importedLedger ? {} : { ...mapping } }; }
 
 function countUp(el, to, fmt) {
   const from = el.dataset.n == null ? to : Number(el.dataset.n);
@@ -492,7 +509,9 @@ function setReadout(s, animate) {
 function renderCurrencyBreakdown() {
   const host = $("#currencyBreakdown");
   if (!host) return;
-  const r = netByCurrency(OBLIGATIONS, mapping, resolved);
+  const r = importedLedger
+    ? netByCurrency(importedLedger.obligations, {}, new Set(importedLedger.entities.map((e) => e.id)))
+    : netByCurrency(OBLIGATIONS, mapping, resolved);
   const rows = Object.entries(r.perCurrency)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([ccy, run]) => html`<tr><td>${ccy}</td><td>${fmtMoney(run.gross, ccy)}</td><td>${fmtMoney(run.netSettlementVolume, ccy)}</td><td>${run.reductionPct.toFixed(1)}%</td></tr>`)
@@ -539,6 +558,15 @@ function paintGraph(opts = {}) {
 
 placeGraph();
 wide.addEventListener("change", () => { placeGraph(); paintGraph({ animate: false }); });
+
+// countUp's rAF loop can die mid-tween if the tab is backgrounded (browsers
+// stop scheduling animation frames for hidden documents, and nothing ever
+// resumes the chain) — the same class of problem the graph already guards
+// against with graphDirty/visible(). Resync the numbers with a hard snap
+// whenever the tab comes back, so a stale mid-animation value never lingers.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") setReadout(currentState(), false);
+});
 
 function refreshNettingNumbers() {
   setReadout(currentState(), true);
@@ -796,6 +824,104 @@ function ablationNote(r) {
   }
   return `Result recorded as computed. The false-merge count is the safety metric to watch.`;
 }
+
+// --------------------------------------------------------------------------
+// ledger import — the first untrusted dynamic data source in the app. Every
+// value below reaches markup only via html``/esc(), never into an attribute
+// position, and nothing is applied to the netting run until "Apply" — a bad
+// or malicious file just produces an error list, it never silently changes
+// what's on screen.
+// --------------------------------------------------------------------------
+let pendingLedger = null; // validated { obligations, entities, errors } waiting on "Apply"
+
+function renderImportErrors(errors) {
+  const host = $("#importErrors");
+  if (!errors.length) { setHTML(host, ""); return; }
+  setHTML(host,
+    `<ul class="evidence">` +
+    errors.map((e) => html`<li><span class="n">&#10007;</span> row ${e.row}: ${e.message}</li>`).join("") +
+    `</ul>`
+  );
+}
+
+function renderImportPreview(ledger) {
+  const host = $("#importPreview");
+  if (!ledger || !ledger.obligations.length) { setHTML(host, `<div class="empty">Nothing valid to apply yet.</div>`); return; }
+  const rows = ledger.obligations
+    .map((o) => html`<tr><td>${o.id}</td><td>${o.from} &rarr; ${o.to}</td><td>${fmtMoney(o.amount, o.currency)}</td></tr>`)
+    .join("");
+  setHTML(host,
+    `<table class="abl">
+       <thead><tr><th>ID</th><th>From &rarr; To</th><th>Amount</th></tr></thead>
+       <tbody>${rows}</tbody>
+     </table>
+     <div class="foot" style="margin-top:10px">${esc(String(ledger.entities.length))} entities, ${esc(String(ledger.obligations.length))} valid obligation(s) ready to apply.</div>`
+  );
+}
+
+function ingestLedgerText(text, filename) {
+  const looksJSON = /\.json$/i.test(filename) || text.trim().startsWith("{") || text.trim().startsWith("[");
+  let parsed;
+  try {
+    parsed = looksJSON ? parseJSON(text) : parseCSV(text);
+  } catch (e) {
+    pendingLedger = null;
+    $("#importApply").disabled = true;
+    renderImportErrors([{ row: "-", message: `could not parse file: ${e.message}` }]);
+    renderImportPreview(null);
+    return;
+  }
+  const result = validateLedger(parsed);
+  renderImportErrors(result.errors);
+  renderImportPreview(result);
+  pendingLedger = result.obligations.length ? result : null;
+  $("#importApply").disabled = !pendingLedger;
+}
+
+$("#importFile").onchange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => ingestLedgerText(String(reader.result), file.name);
+  reader.readAsText(file);
+};
+
+$("#importSample").onclick = () => { $("#importFile").value = ""; ingestLedgerText(SAMPLE_CSV, "sample.csv"); };
+
+$("#importApply").onclick = () => {
+  if (!pendingLedger) return;
+  importedLedger = pendingLedger;
+  graph.setTopology({
+    entities: importedLedger.entities.map((e) => e.id),
+    unresolved: [],
+    labels: Object.fromEntries(importedLedger.entities.map((e) => [e.id, e.label])),
+  });
+  graphDirty = true;
+  $("#nettingEyebrow").textContent = "Netting run · custom ledger (import)";
+  logDecision("import", {
+    actor: currentActor,
+    text: `Ledger imported by ${currentActor} at ${nowIST()}\nResult: netting run now sourced from the imported ledger (${importedLedger.entities.length} entities, ${importedLedger.obligations.length} obligations), replacing the sample fixture.`,
+  });
+  renderAudit();
+  refreshNettingNumbers();
+  goTab("netting");
+};
+
+$("#importReset").onclick = () => {
+  if (!importedLedger) return;
+  importedLedger = null;
+  pendingLedger = null;
+  graph.setTopology({ entities: ENTITIES, unresolved: UNRESOLVED, labels: NODE_LABELS });
+  graphDirty = true;
+  $("#importFile").value = "";
+  $("#importApply").disabled = true;
+  renderImportErrors([]);
+  renderImportPreview(null);
+  $("#nettingEyebrow").textContent = "Netting run · draft #2026-09-13-A";
+  logDecision("import", { actor: currentActor, text: `Ledger import reset by ${currentActor} at ${nowIST()}\nResult: netting run back on the sample fixture.` });
+  renderAudit();
+  refreshNettingNumbers();
+};
 
 // --------------------------------------------------------------------------
 $("#runDemo").onclick = startDemo;

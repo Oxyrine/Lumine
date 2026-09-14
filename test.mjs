@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { normalize, fuzzyScore, idCheck, gate, net, HIGH, ablationRoute, scoreAblation, FUZZY_CANDIDATE, netByCurrency, RATES, exposureOf, DUAL_CONTROL_THRESHOLD } from "./pipeline.js";
 import { OBLIGATIONS, ENTITIES } from "./fixture.js";
+import { parseCSV, parseJSON, validateLedger, SAMPLE_CSV } from "./import.js";
 
 let pass = 0;
 const t = (name, fn) => {
@@ -177,6 +178,44 @@ t("scoreAblation: counts false merges / separations and recovered relationships"
   assert.equal(r.full.falseSep, 1);        // the merge routed to separate
   assert.equal(r.recovered.length, 1);
   assert.ok(r.full.reviewRecall > r.fuzzyOnly.reviewRecall);
+});
+
+// --- ledger import (spec: CSV/JSON, validated, nothing silently dropped) ---
+t("parseCSV + validateLedger: SAMPLE_CSV catches the duplicate id and the self-reference", () => {
+  const r = validateLedger(parseCSV(SAMPLE_CSV));
+  assert.equal(r.obligations.length, 4); // imp1, imp2, first imp3, imp5 — second imp3 and imp4 rejected
+  assert.ok(r.errors.some((e) => e.message.includes("duplicate obligation id")));
+  assert.ok(r.errors.some((e) => e.message.includes("same entity")));
+  assert.deepEqual(r.entities.map((e) => e.id), ["haldane", "riverside", "solace", "vasant"]);
+});
+
+t("validateLedger: non-numeric amount and missing fields are rejected, not silently dropped", () => {
+  const r = validateLedger({
+    entities: null,
+    obligations: [
+      { row: 1, id: "a", from: "x", to: "y", amount: "not-a-number" },
+      { row: 2, id: "b", from: "x", to: "", amount: 100 },
+      { row: 3, id: "c", from: "x", to: "y", amount: -5 },
+    ],
+  });
+  assert.equal(r.obligations.length, 0);
+  assert.equal(r.errors.length, 3);
+});
+
+t("validateLedger: an explicit entities roster rejects an obligation naming an unknown id", () => {
+  const r = validateLedger({
+    entities: [{ id: "x", label: "X" }, { id: "y", label: "Y" }],
+    obligations: [{ row: 1, id: "a", from: "x", to: "z", amount: 100 }],
+  });
+  assert.equal(r.obligations.length, 0);
+  assert.ok(r.errors[0].message.includes("unknown entity id"));
+});
+
+t("parseJSON: accepts a bare obligations array or an {obligations} object", () => {
+  const bare = parseJSON(JSON.stringify([{ id: "a", from: "x", to: "y", amount: 10 }]));
+  const wrapped = parseJSON(JSON.stringify({ obligations: [{ id: "a", from: "x", to: "y", amount: 10 }] }));
+  assert.equal(bare.obligations.length, 1);
+  assert.equal(wrapped.obligations.length, 1);
 });
 
 console.log(`\n${pass} passed`);
