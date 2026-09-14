@@ -108,8 +108,14 @@
         <div class="foot" style="margin-top:16px">
           Central-clearing model: one payment leg per entity with a non-zero net position.
           Abstention: an obligation whose counterparty identity is not corroborated is excluded from the run.
-          Currency: INR, single-currency MVP.
         </div>
+
+        <div class="shead quiet" style="margin-top:28px">
+          <div class="eyebrow">By currency</div>
+          <h2 style="font-size:1.1rem">Every currency in the ledger</h2>
+          <p class="sub">The draft above is the INR run. Other currencies net only against themselves.</p>
+        </div>
+        <div id="currencyBreakdown"></div>
       </section>
 
       <section id="proof">
@@ -137,7 +143,6 @@
           <ul>
             <li>Voice approval</li>
             <li>Snapdragon NPU delegate execution (WASM today; verified at the venue first)</li>
-            <li>Multi-currency netting &mdash; single-currency INR here</li>
             <li>Real vendor-master / ERP integration &mdash; synthetic ledger here</li>
           </ul>
         </div>

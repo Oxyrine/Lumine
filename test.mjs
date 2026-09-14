@@ -1,6 +1,6 @@
 // node test.mjs  — gate logic + netting math. No model needed.
 import assert from "node:assert/strict";
-import { normalize, fuzzyScore, idCheck, gate, net, HIGH, ablationRoute, scoreAblation, FUZZY_CANDIDATE } from "./pipeline.js";
+import { normalize, fuzzyScore, idCheck, gate, net, HIGH, ablationRoute, scoreAblation, FUZZY_CANDIDATE, netByCurrency, RATES, exposureOf, DUAL_CONTROL_THRESHOLD } from "./pipeline.js";
 import { OBLIGATIONS, ENTITIES } from "./fixture.js";
 
 let pass = 0;
@@ -94,6 +94,47 @@ t("net: edges carry resolved endpoints; approved mapping rewrites them", () => {
   assert.equal(o9.rawFrom, "cp-sunrise");    // original preserved for animation
   assert.ok(r.edges.every((e) => resolved.has(e.from) && resolved.has(e.to)));
   assert.ok(r.excludedEdges.some((e) => e.id === "o10"));
+});
+
+// --- multi-currency (netByCurrency wraps net(), which stays untouched) ---
+t("netByCurrency: groups by currency, each group nets independently of the others", () => {
+  const r = netByCurrency(OBLIGATIONS, {}, resolved);
+  const currencies = Object.keys(r.perCurrency).sort();
+  assert.deepEqual(currencies, ["AED", "EUR", "INR", "USD"]);
+  // the 3-obligation USD cycle (o11-o13) nets down; INR's own reduction is untouched by USD/EUR/AED existing
+  assert.ok(r.perCurrency.USD.netSettlementVolume < r.perCurrency.USD.gross);
+});
+
+t("netByCurrency: a lone obligation in a currency has nothing to net against", () => {
+  const r = netByCurrency(OBLIGATIONS, {}, resolved);
+  assert.equal(r.perCurrency.AED.netSettlementVolume, r.perCurrency.AED.gross);
+  assert.equal(r.perCurrency.AED.reductionPct, 0);
+});
+
+t("netByCurrency: base-currency headline is a fixed-rate rollup, not cross-currency netting", () => {
+  const r = netByCurrency(OBLIGATIONS, {}, resolved);
+  const expectedGrossBase = Object.entries(r.perCurrency)
+    .reduce((sum, [ccy, run]) => sum + run.gross * (RATES[ccy] ?? 1), 0);
+  assert.ok(Math.abs(r.grossBase - expectedGrossBase) < 0.01);
+  assert.equal(r.baseCurrency, "INR");
+});
+
+t("netByCurrency: legs and excluded count sum across currencies", () => {
+  const r = netByCurrency(OBLIGATIONS, {}, resolved);
+  const sumLegsBefore = Object.values(r.perCurrency).reduce((s, run) => s + run.legsBefore, 0);
+  assert.equal(r.legsBefore, sumLegsBefore);
+  assert.equal(r.excludedCount, 2); // still just o9/o10 — the new currency obligations are all fully resolved
+});
+
+// --- dual control (exposureOf feeds the second-approver gate in app.js) ---
+t("exposureOf: sums every obligation naming the counterparty on either side", () => {
+  const exposure = exposureOf(OBLIGATIONS, "cp-sunrise");
+  assert.equal(exposure, 840_000); // o9 only
+  assert.ok(exposure >= DUAL_CONTROL_THRESHOLD);
+});
+
+t("exposureOf: zero for a counterparty with no obligations", () => {
+  assert.equal(exposureOf(OBLIGATIONS, "cp-meridian-alt"), 0);
 });
 
 // --- ablation routing (spec §12) ---

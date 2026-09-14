@@ -84,6 +84,16 @@ export const OBLIGATIONS = [
   { id: "o8", from: "meridian", to: "veritas", amount: 210_000 },
   { id: "o9", from: "cp-sunrise", to: "north-star", amount: 840_000 }, // unresolved until Case 2 approved
   { id: "o10", from: "cp-orbit-cbe", to: "north-star", amount: 700_000 }, // stays unresolved (Case 3 kept separate). Sized so that wrongly approving the ID-conflict match shows a visible (and misdirected) netting change.
+
+  // Cross-border obligations, same six entities. Netting only ever offsets
+  // obligations denominated in the same currency (pipeline.js netByCurrency)
+  // — these are three independent per-currency runs, not one converted pool.
+  { id: "o11", from: "harbor", to: "veritas", amount: 12_000, currency: "USD" },
+  { id: "o12", from: "veritas", to: "cobalt", amount: 8_000, currency: "USD" },
+  { id: "o13", from: "cobalt", to: "harbor", amount: 5_000, currency: "USD" },   // closes a 3-way USD cycle, so USD nets down too
+  { id: "o14", from: "orbit", to: "meridian", amount: 15_000, currency: "EUR" },
+  { id: "o15", from: "meridian", to: "orbit", amount: 6_000, currency: "EUR" },
+  { id: "o16", from: "north-star", to: "harbor", amount: 40_000, currency: "AED" }, // the honest edge case: one obligation, nothing to net against
 ];
 
 // ---------------------------------------------------------------------------

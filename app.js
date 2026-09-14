@@ -1,4 +1,4 @@
-import { fuzzyScore, idCheck, gate, whyText, net, corroboratingFlags, ablationRoute, scoreAblation, exposureOf, DUAL_CONTROL_THRESHOLD } from "./pipeline.js";
+import { fuzzyScore, idCheck, gate, whyText, net, corroboratingFlags, ablationRoute, scoreAblation, exposureOf, DUAL_CONTROL_THRESHOLD, netByCurrency } from "./pipeline.js";
 import { semanticScore, loadModel, isReady } from "./embed.js";
 import { CASES, ENTITIES, OBLIGATIONS, ABLATION_CASES } from "./fixture.js";
 import { createGraph } from "./graph.js";
@@ -8,6 +8,11 @@ import { createScatter } from "./scatter.js";
 // state
 // --------------------------------------------------------------------------
 const resolved = new Set(ENTITIES);
+// net() offsets whatever obligations it's handed as if they were one currency,
+// so the two live netting-run call sites below must only ever see INR — the
+// multi-currency breakdown (renderCurrencyBreakdown) is the only place that
+// sees the full mixed-currency OBLIGATIONS list, via netByCurrency().
+const inrObligations = OBLIGATIONS.filter((o) => (o.currency || "INR") === "INR");
 const mapping = {};                 // approved counterparty id -> canonical entity
 const auditLog = [];         // [{ seq, kind, caseId, counterpartyId, actor, text, reversed }], newest first
 let auditSeq = 0;
@@ -31,7 +36,9 @@ const pendingApproval = {};                   // counterpartyId -> { by, caseId 
 const demo = { on: false, step: 0 };
 
 const $ = (s) => document.querySelector(s);
-const fmtINR = (n) => "₹" + Math.round(n).toLocaleString("en-IN");
+const CURRENCY_SYMBOL = { INR: "₹", USD: "$", EUR: "€", AED: "AED " };
+const fmtMoney = (n, ccy = "INR") => (CURRENCY_SYMBOL[ccy] ?? ccy + " ") + Math.round(n).toLocaleString("en-IN");
+const fmtINR = (n) => fmtMoney(n, "INR");
 const nowIST = () =>
   new Date().toLocaleTimeString("en-GB", { hour12: false, timeZone: "Asia/Kolkata" }) + " IST";
 
@@ -54,7 +61,7 @@ document.querySelectorAll("nav button").forEach((b) => {
     if (demo.on) exitDemo();
     document.querySelectorAll("nav button").forEach((x) => x.classList.toggle("active", x === b));
     document.querySelectorAll("main section").forEach((s) => s.classList.toggle("active", s.id === b.dataset.tab));
-    if (b.dataset.tab === "netting") { setReadout(currentState(), true); if (graphDirty) paintGraph({ animate: true }); }
+    if (b.dataset.tab === "netting") { setReadout(currentState(), true); renderCurrencyBreakdown(); if (graphDirty) paintGraph({ animate: true }); }
   };
 });
 function goTab(name) {
@@ -273,7 +280,7 @@ function openDetail(c) {
   const s = scored.get(c.id);
   const q = $("#queue");
   const before = currentNet();
-  const trial = net(OBLIGATIONS, { ...mapping, [c.counterpartyId]: c.canonicalEntity }, resolved);
+  const trial = net(inrObligations, { ...mapping, [c.counterpartyId]: c.canonicalEntity }, resolved);
   const dVol = before.netSettlementVolume - trial.netSettlementVolume;
   const dLegs = before.legsAfter - trial.legsAfter;
   const why = whyText({ fuzzy: s.fuzzy, semanticScore: s.semantic, idStatus: s.idStatus, evidence: c.evidence });
@@ -437,7 +444,7 @@ function isReversible(entry) {
 // --------------------------------------------------------------------------
 // netting
 // --------------------------------------------------------------------------
-function currentNet() { return net(OBLIGATIONS, mapping, resolved); }
+function currentNet() { return net(inrObligations, mapping, resolved); }
 function currentState() { return { ...currentNet(), mapping: { ...mapping } }; }
 
 function countUp(el, to, fmt) {
@@ -479,6 +486,30 @@ function setReadout(s, animate) {
   document.querySelectorAll('[data-stat="excluded"]').forEach((el) => { el.textContent = String(s.excludedCount); });
 }
 
+// The INR readout above is the draft settlement run; this is the full picture
+// across every currency in the ledger, each netted only against itself
+// (netByCurrency never offsets one currency against another — see pipeline.js).
+function renderCurrencyBreakdown() {
+  const host = $("#currencyBreakdown");
+  if (!host) return;
+  const r = netByCurrency(OBLIGATIONS, mapping, resolved);
+  const rows = Object.entries(r.perCurrency)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([ccy, run]) => html`<tr><td>${ccy}</td><td>${fmtMoney(run.gross, ccy)}</td><td>${fmtMoney(run.netSettlementVolume, ccy)}</td><td>${run.reductionPct.toFixed(1)}%</td></tr>`)
+    .join("");
+  setHTML(host,
+    `<table class="abl">
+       <thead><tr><th>Currency</th><th>Gross</th><th>Net</th><th>Reduction</th></tr></thead>
+       <tbody>${rows}</tbody>
+     </table>
+     <div class="foot" style="margin-top:10px">
+       Each currency is netted only against itself &mdash; never across currencies. The
+       ${esc(r.baseCurrency)} headline (${esc(fmtMoney(r.netSettlementVolumeBase, r.baseCurrency))} net) converts
+       each currency's result at a fixed reference rate, not a live feed.
+     </div>`
+  );
+}
+
 // --- the graph: one instance, moved between slots, never re-created ----------
 // createGraph() calls container.replaceChildren() and has no destroy path; its
 // <marker id="arrow"> is a document-global id. So it must exist exactly once.
@@ -511,10 +542,12 @@ wide.addEventListener("change", () => { placeGraph(); paintGraph({ animate: fals
 
 function refreshNettingNumbers() {
   setReadout(currentState(), true);
+  renderCurrencyBreakdown();
   paintGraph({ animate: true }); // guards visibility itself; dirty if hidden
 }
 
 setReadout(currentState(), false);
+renderCurrencyBreakdown();
 // The first graph render is owned by dismissBoot() so its spawn-in isn't spent
 // behind the cold-open overlay. With no overlay (rollback), render now instead.
 if (!boot) requestAnimationFrame(() => paintGraph({ animate: true }));

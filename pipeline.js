@@ -260,3 +260,53 @@ export function net(obligations, mapping, resolvedEntities) {
     excludedEdges,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Multi-currency (spec §21: was explicitly out of scope; now in, deliberately
+// narrow). Netting only ever offsets obligations denominated in the same
+// currency — an INR payable and a USD payable are never netted against each
+// other here, because that would require a live FX feed and settlement-date
+// handling this prototype doesn't have. netByCurrency() groups by currency
+// and calls the existing, unchanged net() once per group; the base-currency
+// figures below are a fixed-rate headline for a single glanceable number,
+// not a claim that the currencies were actually netted together.
+// ---------------------------------------------------------------------------
+
+export const BASE_CURRENCY = "INR";
+
+// Fixed reference rates to INR. NOT a live feed — stated as such wherever
+// this is shown. Only used to roll the per-currency runs into one headline.
+export const RATES = { INR: 1, USD: 83, EUR: 90, AED: 22.6 };
+
+export function netByCurrency(obligations, mapping, resolvedEntities, rates = RATES) {
+  const byCcy = new Map();
+  for (const o of obligations) {
+    const ccy = o.currency || BASE_CURRENCY;
+    if (!byCcy.has(ccy)) byCcy.set(ccy, []);
+    byCcy.get(ccy).push(o);
+  }
+
+  const perCurrency = {};
+  let grossBase = 0, netBase = 0, legsBefore = 0, legsAfter = 0, excludedCount = 0;
+  for (const [ccy, obs] of byCcy) {
+    const r = net(obs, mapping, resolvedEntities); // same pure function, one currency's obligations at a time
+    perCurrency[ccy] = r;
+    const rate = rates[ccy] ?? 1;
+    grossBase += r.gross * rate;
+    netBase += r.netSettlementVolume * rate;
+    legsBefore += r.legsBefore;
+    legsAfter += r.legsAfter;
+    excludedCount += r.excludedCount;
+  }
+
+  return {
+    perCurrency,
+    baseCurrency: BASE_CURRENCY,
+    grossBase,
+    netSettlementVolumeBase: netBase,
+    reductionPctBase: grossBase === 0 ? 0 : ((grossBase - netBase) / grossBase) * 100,
+    legsBefore,
+    legsAfter,
+    excludedCount,
+  };
+}
