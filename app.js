@@ -4,6 +4,7 @@ import { CASES, ENTITIES, NODE_LABELS, UNRESOLVED, OBLIGATIONS, ABLATION_CASES }
 import { createGraph } from "./graph.js";
 import { createScatter } from "./scatter.js";
 import { parseCSV, parseJSON, validateLedger, SAMPLE_CSV } from "./import.js";
+import { recordAndTranscribe, matchIntent } from "./voice.js";
 
 // --------------------------------------------------------------------------
 // state
@@ -332,7 +333,9 @@ function openDetail(c) {
      <div class="actions">
        <button class="btn-separate ${s.result.decision === "KEEP_SEPARATE" ? "primary" : ""}" id="dSep">Keep separate</button>
        <button class="btn-approve ${s.result.decision === "KEEP_SEPARATE" ? "" : "primary"}" id="dApp"${sameActorPending ? " disabled" : ""}>${approveLabel}</button>
-     </div>` +
+       <button class="btn-separate" id="dVoice" title="Say &quot;approve&quot; or &quot;keep separate&quot;">Voice authorize</button>
+     </div>
+     <div id="voiceStatus"></div>` +
     (dualNoteText ? html`<div class="foot" style="margin:14px 0 0">${dualNoteText}</div>` : "") +
     html`<div class="sub" style="margin-top:10px">${s.result.reason}</div>` +
     `</div>
@@ -341,12 +344,58 @@ function openDetail(c) {
   $("#backBtn").onclick = renderQueue;
   $("#dApp").onclick = () => approve(c, s);
   $("#dSep").onclick = () => keepSeparate(c, s);
+  $("#dVoice").onclick = () => runVoiceAuthorization(c, s);
+}
+
+// Records one utterance, matches it against the fixed approve/separate/cancel
+// grammar, and shows the transcript back for explicit confirmation before
+// calling approve()/keepSeparate() — a misheard "approve" must never commit
+// on its own. Manipulates #voiceStatus directly rather than re-rendering the
+// whole detail card through openDetail(), so this multi-step flow survives
+// without being wiped mid-flight.
+async function runVoiceAuthorization(c, s) {
+  const status = $("#voiceStatus");
+  const micBtn = $("#dVoice");
+  if (!status || !micBtn) return;
+  micBtn.disabled = true;
+  setHTML(status, `<div class="foot" style="margin-top:10px">Listening for 4 seconds — say "approve" or "keep separate". The voice model downloads on first use, so transcription may take a moment.</div>`);
+
+  let transcript;
+  try {
+    transcript = await recordAndTranscribe();
+  } catch (err) {
+    setHTML(status, html`<div class="foot" style="margin-top:10px">Voice authorization unavailable: ${err.message || String(err)}</div>`);
+    micBtn.disabled = false;
+    return;
+  }
+
+  const intent = matchIntent(transcript);
+  if (intent == null || intent === "cancel") {
+    setHTML(status, html`<div class="foot" style="margin-top:10px">Heard: "${transcript || "(nothing)"}" — no valid command recognized. Try again or use the buttons above.</div>`);
+    micBtn.disabled = false;
+    return;
+  }
+
+  const actionLabel = intent === "approve" ? "approve this match" : "keep this match separate";
+  setHTML(status,
+    html`<div class="foot" style="margin-top:10px">Heard: "${transcript}" &rarr; ${actionLabel}. Confirm before this applies.</div>` +
+    `<div class="actions" style="margin-top:10px">
+       <button class="btn-separate" id="voiceCancel">Not what I said</button>
+       <button class="btn-approve primary" id="voiceConfirm">Confirm voice authorization</button>
+     </div>`
+  );
+  $("#voiceCancel").onclick = () => { micBtn.disabled = false; setHTML(status, ""); };
+  $("#voiceConfirm").onclick = () => {
+    if (intent === "approve") approve(c, s, "voice");
+    else keepSeparate(c, s, "voice");
+  };
 }
 
 // Dual control: a merge material enough to matter needs a second analyst's
 // sign-off before it freezes. The first call records intent only — mapping
 // is untouched until a *different* actor counter-approves.
-function approve(c, s) {
+function approve(c, s, via = null) {
+  const viaNote = via === "voice" ? " (voice authorization)" : "";
   const exposure = exposureOf(OBLIGATIONS, c.counterpartyId);
   if (exposure >= DUAL_CONTROL_THRESHOLD) {
     const pending = pendingApproval[c.counterpartyId];
@@ -357,7 +406,7 @@ function approve(c, s) {
         counterpartyId: c.counterpartyId,
         actor: currentActor,
         text:
-          `Match #${c.id} approved by ${currentActor} at ${nowIST()}\n` +
+          `Match #${c.id} approved by ${currentActor} at ${nowIST()}${viaNote}\n` +
           `Exposure ${fmtINR(exposure)} exceeds the dual-control threshold (${fmtINR(DUAL_CONTROL_THRESHOLD)})\n` +
           `Result: awaiting counter-approval from a second analyst before the mapping freezes`,
       });
@@ -376,7 +425,7 @@ function approve(c, s) {
       counterpartyId: c.counterpartyId,
       actor: currentActor,
       text:
-        `Match #${c.id} counter-approved by ${currentActor} at ${nowIST()} (first approval: ${pending.by})\n` +
+        `Match #${c.id} counter-approved by ${currentActor} at ${nowIST()}${viaNote} (first approval: ${pending.by})\n` +
         `Result: mapping frozen (v${mappingVersion}) for netting run #${NETTING_RUN_ID}`,
     });
     renderAudit(); renderQueue(); refreshNettingNumbers();
@@ -391,19 +440,20 @@ function approve(c, s) {
     caseId: c.id,
     counterpartyId: c.counterpartyId,
     text:
-      `Match #${c.id} approved by ${currentActor} at ${nowIST()}\n` +
+      `Match #${c.id} approved by ${currentActor} at ${nowIST()}${viaNote}\n` +
       `Evidence: semantic ${semanticText}, ${flags.length ? flags.join(", ") : "no corroborating context"}, ID ${s.idStatus}\n` +
       `Result: mapping frozen (v${mappingVersion}) for netting run #${NETTING_RUN_ID}`,
   });
   renderAudit(); renderQueue(); refreshNettingNumbers();
 }
 
-function keepSeparate(c, s) {
+function keepSeparate(c, s, via = null) {
+  const viaNote = via === "voice" ? " (voice authorization)" : "";
   decidedSeparate.add(c.id);
   logDecision("separate", {
     caseId: c.id,
     text:
-      `Match #${c.id} kept separate by ${currentActor} at ${nowIST()}\n` +
+      `Match #${c.id} kept separate by ${currentActor} at ${nowIST()}${viaNote}\n` +
       `Reason: ${s.result.reason}\n` +
       `Result: obligation excluded from netting run #${NETTING_RUN_ID}`,
   });

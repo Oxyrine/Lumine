@@ -42,6 +42,7 @@ In scope:
 - A second-approver (dual-control) tier for high-exposure counterparties
 - Reversal of an approved or separated decision, with a compensating audit entry
 - CSV/JSON ledger import, validated on-device, replacing the sample run until reset
+- On-device voice authorization, transcript confirmed before it applies
 - A held-out ablation (48 pairs) proving the embedding layer's contribution
 - An audit log
 - A visible offline demonstration
@@ -134,6 +135,29 @@ When a case's counterparty exposure is at or above the threshold, `AUTO_MERGE` a
 
 The header's analyst switcher (Analyst A / Analyst B) exists to make this demonstrable without a second device.
 
+### 7b. Voice authorization
+
+A "Voice authorize" button on the review detail records one utterance and matches it
+against a fixed grammar (`voice-grammar.js`): `approve`, `keep separate`, or `cancel`, each
+with a short list of accepted phrasings. Transcription is on-device via
+`Xenova/whisper-tiny.en` (`voice.js`) — deliberately **not** the browser's native
+`SpeechRecognition` API, which is server-backed and would silently violate the "nothing
+leaves the device" claim §13's network-cut demonstration exists to prove. The whisper model
+(~40 MB) loads lazily on first mic use, never at boot, alongside the MiniLM model already
+loaded for matching.
+
+The transcript is always shown back before anything applies — `"Heard: '<transcript>' →
+approve this match. Confirm before this applies."` — with **Confirm** / **Not what I said**
+controls. A misheard or unrecognized utterance never commits a decision on its own; it
+either asks for confirmation of what was understood, or reports that nothing valid was
+recognized. Confirming routes through the same `approve()` / `keepSeparate()` used by the
+on-screen buttons (so dual control, §7a, still applies if the exposure warrants it), and the
+resulting audit line is tagged `(voice authorization)`.
+
+`matchIntent()` is pure string logic with no model dependency, split into its own module so
+it can be unit-tested in Node without pulling in the transformers.js CDN import — the same
+reason `pipeline.js` never imports `embed.js`.
+
 ---
 
 ## 8. Layer 5 — The netting engine
@@ -189,7 +213,7 @@ The Proof screen plots this: fuzzy (x) against semantic (y), y-axis clamped to 0
 
 ## 10. Screens
 
-**Review** — the three scripted cases. The queue shows fuzzy / semantic / ID at a glance and the gate's badge. Cases the identifier decides (`match`, `conflict`) resolve without the model and say so ("the identifier decided this"). Tapping a case opens the split view: AI confidence (model) vs. gate decision (rule) as visibly separate quantities, the evidence ✓/✗ list, the plain "Why", the netting delta, and `[Keep separate] [Approve match]` — or, for a high-exposure counterparty, the dual-control variant of that button (§7a). Approving freezes a mapping version and writes an audit line. A prominent "Start the walkthrough" card narrates all three cases in order for a first-time visitor.
+**Review** — the three scripted cases. The queue shows fuzzy / semantic / ID at a glance and the gate's badge. Cases the identifier decides (`match`, `conflict`) resolve without the model and say so ("the identifier decided this"). Tapping a case opens the split view: AI confidence (model) vs. gate decision (rule) as visibly separate quantities, the evidence ✓/✗ list, the plain "Why", the netting delta, and `[Keep separate] [Approve match]` — or, for a high-exposure counterparty, the dual-control variant of that button (§7a) — plus a **Voice authorize** button (§7b). Approving freezes a mapping version and writes an audit line. A prominent "Start the walkthrough" card narrates all three cases in order for a first-time visitor.
 
 **Live** — two names, optional context, optional ID per side, three evidence checkboxes. Runs the six stages with visible progress. Any pair; the result is whatever the model and gate actually produce.
 
@@ -245,7 +269,7 @@ Match #<id> kept separate by <analyst> at HH:MM:SS IST
 Reason: <gate reason>
 Result: obligation excluded from netting run #<run id>
 ```
-Dual control (§7a) writes up to three lines for one match: the first approval (mapping not yet applied), the counter-approval by a different analyst, and the freeze.
+Dual control (§7a) writes up to three lines for one match: the first approval (mapping not yet applied), the counter-approval by a different analyst, and the freeze. A voice-authorized approval or separation (§7b) carries the same format with `(voice authorization)` appended to its first line.
 
 Reversal: the original entry is marked reversed (rendered struck-through, never deleted or edited) and a new compensating entry is appended — `mappingVersion` only ever bumps forward.
 
@@ -281,10 +305,10 @@ A ledger imported via the Import screen (§10) replaces this dataset's obligatio
 ## 17. Architecture
 
 - **No build step.** Plain ES modules, `<script type="module">`. No `package.json`, no bundler, no framework.
-- Files: `index.html`, `styles.css`, `app.js` (one file — module-scope init order is load-bearing), `pipeline.js` (pure logic, imported by browser and Node), `embed.js`, `fixture.js`, `graph.js`, `scatter.js`, `import.js` (CSV/JSON ledger parsing and validation, no dependency), `sw.js`, `test.mjs`, `serve.py` (no-cache dev server, port 8123, `ThreadingHTTPServer` so concurrent asset requests don't serialize), `fonts/` (self-hosted, SIL OFL), `vercel.json`, `.nojekyll`.
+- Files: `index.html`, `styles.css`, `app.js` (one file — module-scope init order is load-bearing), `pipeline.js` (pure logic, imported by browser and Node), `embed.js`, `fixture.js`, `graph.js`, `scatter.js`, `import.js` (CSV/JSON ledger parsing and validation, no dependency), `voice.js` (whisper-tiny.en loading and mic capture) + `voice-grammar.js` (pure intent matching, split out so it's testable without the model), `sw.js`, `test.mjs`, `serve.py` (no-cache dev server, port 8123, `ThreadingHTTPServer` so concurrent asset requests don't serialize), `fonts/` (self-hosted, SIL OFL), `vercel.json`, `.nojekyll`.
 - Fonts self-hosted because `sw.js` only caches same-origin — a CDN font would bypass the worker and break offline. Schibsted Grotesk (display), IBM Plex Mono (all numerals — the full upstream release; the Google CDN subset drops ₹ U+20B9).
 - Deploy: Vercel (`lumine-opal.vercel.app`) and GitHub Pages (`oxyrine.github.io/Lumine`). Both zero-config static; `vercel.json` only forces `no-cache` on `sw.js`.
-- Tests: `node test.mjs` — 32 assertions over gate outcomes, netting math (including multi-currency and dual-control exposure), ablation routing, and ledger import validation. Authoritative for logic; must stay green.
+- Tests: `node test.mjs` — 34 assertions over gate outcomes, netting math (including multi-currency and dual-control exposure), ablation routing, ledger import validation, and the voice-authorization grammar. Authoritative for logic; must stay green. (Model-loading code — `embed.js`, `voice.js` — is deliberately never imported by `test.mjs`, so the suite stays network-free.)
 
 ---
 
@@ -297,33 +321,30 @@ Editorial-treasury system. White canvas, navy ink (`#0a2540`), one indigo voltag
 ## 19. Current limitations
 
 Stated on the Audit tab, not hidden:
-- Voice authorization (§20 — the next thing to build)
 - Snapdragon NPU delegate execution — needs the physical device to verify against; WASM here
 - Real vendor-master / ERP integration — the Import screen's CSV/JSON parser (§10) is the
   honest stand-in; there is no live API connection
 - Live FX feed for the multi-currency headline (§8a) — the conversion table is a fixed
   reference set, restated everywhere it's shown
 
-This is a small, genuine list — not a scope statement for a submission deadline. Everything
+This is a small, genuine list, not a scope statement for a submission deadline. Everything
 else originally deferred (dual control, multi-currency netting, reversal, the 48-case
-ablation fixture, CSV/JSON import) has since been built and is described in the sections
-above.
+ablation fixture, CSV/JSON import, voice authorization) has since been built and is
+described in the sections above.
 
 ---
 
 ## 20. Roadmap
 
-**Voice authorization** — the analyst speaks "approve" or "keep separate"; the utterance is
-transcribed on-device via `Xenova/whisper-tiny.en` (not the browser's native
-`SpeechRecognition` — that API is server-backed and would silently violate the "nothing
-leaves the device" claim §13's network-cut demonstration exists to prove), shown back for
-confirmation before it applies, and the audit line records that it was a voice
-authorization. The riskiest remaining item — if the audio plumbing doesn't cooperate, it's
-cut; nothing else depends on it.
+What's left is each a materially larger undertaking than anything built so far, not a short
+follow-up:
 
-Past that: the Snapdragon NPU delegate (needs the physical hardware), a real ERP/vendor-master
-connector in place of CSV/JSON import, and a live FX feed for the multi-currency headline —
-each a materially larger undertaking than what's built so far, not a short follow-up.
+- **Snapdragon NPU delegate** for the embedding (and, now, whisper) models — needs the
+  physical hardware to build and verify against.
+- **Real ERP/vendor-master connector** in place of CSV/JSON import — an actual API
+  integration, with its own auth, pagination, and schema-mapping concerns.
+- **Live FX feed** for the multi-currency headline, replacing the fixed reference table
+  (§8a) — needs a rate provider and a decision on settlement-date handling.
 
 ---
 
@@ -347,5 +368,6 @@ each a materially larger undertaking than what's built so far, not a short follo
 - Approve Case 2 → dual control engages (§7a); after counter-approval the netting numbers change and the graph re-wires (on the wide layout, without navigating). Reverse it → numbers and graph return, both audit entries present, the original struck through.
 - Run the 48-pair evaluation → completes without freezing the UI; the plot stays legible; the reported numbers match what `scoreAblation` actually returns (§9).
 - Import a deliberately malformed ledger → every bad row is named, nothing is silently dropped; a valid import re-wires the graph to the new topology; reset restores the sample ledger's numbers exactly.
+- Voice authorize a case → the transcript is shown back before anything applies; confirming routes through the same approve/keep-separate path as the on-screen buttons and the audit line is tagged accordingly; a misheard or unrecognized utterance never commits on its own.
 - Cut the network → a Live run still resolves; fonts still render (proves self-hosting).
 - Both breakpoints: ~390 px and ~1440 px. Cross 900 px repeatedly — the graph survives the slot move with its state intact.

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { normalize, fuzzyScore, idCheck, gate, net, HIGH, ablationRoute, scoreAblation, FUZZY_CANDIDATE, netByCurrency, RATES, exposureOf, DUAL_CONTROL_THRESHOLD } from "./pipeline.js";
 import { OBLIGATIONS, ENTITIES } from "./fixture.js";
 import { parseCSV, parseJSON, validateLedger, SAMPLE_CSV } from "./import.js";
+import { matchIntent } from "./voice-grammar.js";
 
 let pass = 0;
 const t = (name, fn) => {
@@ -216,6 +217,21 @@ t("parseJSON: accepts a bare obligations array or an {obligations} object", () =
   const wrapped = parseJSON(JSON.stringify({ obligations: [{ id: "a", from: "x", to: "y", amount: 10 }] }));
   assert.equal(bare.obligations.length, 1);
   assert.equal(wrapped.obligations.length, 1);
+});
+
+// --- voice authorization grammar (pure; the model-loading half of voice.js
+// needs a browser and is exercised live, not here — see verification notes) ---
+t("matchIntent: recognizes each intent's phrases, case/punctuation-insensitive", () => {
+  assert.equal(matchIntent("Approve."), "approve");
+  assert.equal(matchIntent("CONFIRM MERGE"), "approve");
+  assert.equal(matchIntent("keep separate"), "separate");
+  assert.equal(matchIntent("reject!"), "separate");
+  assert.equal(matchIntent("cancel"), "cancel");
+});
+t("matchIntent: an unrecognized or empty utterance returns null, never a guess", () => {
+  assert.equal(matchIntent("the weather is nice today"), null);
+  assert.equal(matchIntent(""), null);
+  assert.equal(matchIntent(undefined), null);
 });
 
 console.log(`\n${pass} passed`);
