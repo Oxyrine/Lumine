@@ -42,7 +42,8 @@ netting run.
   pipeline stages run.
 - **Netting** — the draft run as a live entity graph; recomputes and re-wires as approvals
   or reversals change it. On a wide screen it sits beside the review queue so cause and
-  effect are visible together. A per-currency breakdown sits below the INR draft.
+  effect are visible together. A per-currency breakdown sits below the INR draft, with a
+  "Refresh live rates" button — otherwise a fixed reference table.
 - **Import** — upload a CSV or JSON settlement ledger; every row is validated on-device
   (bad rows are named, never silently dropped), and applying it swaps the Netting screen to
   the imported ledger until reset.
@@ -63,7 +64,7 @@ degrades to a working app (two of three cases still resolve) if the model never 
 
 ```bash
 python serve.py 8123      # no-cache static server; or `python -m http.server`
-node test.mjs             # gate logic, netting math, ablation routing, ledger + voice-grammar validation — no model needed, 34 assertions
+node test.mjs             # gate logic, netting math, ablation routing, ledger + voice-grammar + FX validation — no model needed, 36 assertions
 ```
 
 ES modules need `http://`, not `file://`. First load downloads ~23 MB of model weights (plus
@@ -75,8 +76,9 @@ ES modules need `http://`, not `file://`. First load downloads ~23 MB of model w
   known follow-up, not built here — it needs the physical hardware to verify against.
 - The model is pretrained, inference only. No training on settlement data.
 - **Current limitations** (spec §19): NPU delegate execution, real vendor-master/ERP
-  integration (the CSV/JSON import is the honest stand-in — no live API connection), and a
-  live FX feed for the multi-currency headline (fixed reference rates today).
+  integration (the CSV/JSON import is the honest stand-in — no live API connection), and
+  voice authorization has never been exercised against real speech end-to-end (needs a real
+  microphone to confirm).
 - Data is synthetic (`fixture.js`): six entities, sixteen obligations across four
   currencies, three review cases, 48 labelled ablation pairs.
 
@@ -92,7 +94,8 @@ ES modules need `http://`, not `file://`. First load downloads ~23 MB of model w
 | `import.js` | Hand-rolled CSV/JSON ledger parser and validator — the first untrusted data source in the app. |
 | `voice.js` | `Xenova/whisper-tiny.en` via `transformers.js` — mic capture, on-device transcription, loaded lazily on first use. |
 | `voice-grammar.js` | Pure approve/keep-separate/cancel phrase matching — no model dependency, so it's unit-testable without pulling in the CDN import. |
+| `fx.js` | Live FX rate fetch (on request only) + localStorage cache for the multi-currency headline; `invertRates()` is pure and unit-tested. |
 | `app.js` | UI wiring and state. |
 | `styles.css` | The design system. Fonts self-hosted under `fonts/` (SIL OFL) so offline holds. |
 | `sw.js` | Network-first service worker over the app shell — fresh files in dev, cache fallback offline. |
-| `test.mjs` | `node test.mjs` — asserts gate outcomes, netting math, ablation routing, ledger import validation, and the voice-authorization grammar. |
+| `test.mjs` | `node test.mjs` — asserts gate outcomes, netting math, ablation routing, ledger import validation, the voice-authorization grammar, and FX rate inversion. |

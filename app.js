@@ -5,6 +5,7 @@ import { createGraph } from "./graph.js";
 import { createScatter } from "./scatter.js";
 import { parseCSV, parseJSON, validateLedger, SAMPLE_CSV } from "./import.js";
 import { recordAndTranscribe, matchIntent } from "./voice.js";
+import { fetchLiveRates, getCachedRates } from "./fx.js";
 
 // --------------------------------------------------------------------------
 // state
@@ -43,6 +44,11 @@ const demo = { on: false, step: 0 };
 // An applied ledger import: { obligations: [{id,from,to,amount,currency}], entities: [{id,label}] }.
 // null means the Netting tab and graph show the sample fixture's run.
 let importedLedger = null;
+// Live FX rates for the currency-breakdown headline: { rates, fetchedAt, source } or null
+// (fall back to pipeline.js's fixed RATES table). Seeded from localStorage at boot — that's
+// a read, not a network call — and only ever refreshed on an explicit button click.
+let liveRates = getCachedRates();
+let liveRatesError = null;
 
 const $ = (s) => document.querySelector(s);
 const CURRENCY_SYMBOL = { INR: "₹", USD: "$", EUR: "€", AED: "AED " };
@@ -563,13 +569,18 @@ function setReadout(s, animate) {
 function renderCurrencyBreakdown() {
   const host = $("#currencyBreakdown");
   if (!host) return;
+  const rates = liveRates?.rates; // undefined -> netByCurrency's own RATES default
   const r = importedLedger
-    ? netByCurrency(importedLedger.obligations, {}, new Set(importedLedger.entities.map((e) => e.id)))
-    : netByCurrency(OBLIGATIONS, mapping, resolved);
+    ? netByCurrency(importedLedger.obligations, {}, new Set(importedLedger.entities.map((e) => e.id)), rates)
+    : netByCurrency(OBLIGATIONS, mapping, resolved, rates);
   const rows = Object.entries(r.perCurrency)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([ccy, run]) => html`<tr><td>${ccy}</td><td>${fmtMoney(run.gross, ccy)}</td><td>${fmtMoney(run.netSettlementVolume, ccy)}</td><td>${run.reductionPct.toFixed(1)}%</td></tr>`)
     .join("");
+  const rateNote = liveRates
+    ? html`Live rates as of ${liveRates.fetchedAt} (${liveRates.source}).`
+    : `Fixed reference rates (not a live feed).`;
+  const errNote = liveRatesError ? html` Last refresh failed: ${liveRatesError}.` : "";
   setHTML(host,
     `<table class="abl">
        <thead><tr><th>Currency</th><th>Gross</th><th>Net</th><th>Reduction</th></tr></thead>
@@ -578,9 +589,24 @@ function renderCurrencyBreakdown() {
      <div class="foot" style="margin-top:10px">
        Each currency is netted only against itself &mdash; never across currencies. The
        ${esc(r.baseCurrency)} headline (${esc(fmtMoney(r.netSettlementVolumeBase, r.baseCurrency))} net) converts
-       each currency's result at a fixed reference rate, not a live feed.
-     </div>`
+       each currency's result at a reference rate. ${rateNote}${errNote} Spot rates only &mdash;
+       no trade-date/settlement-date convention.
+     </div>
+     <button class="runbtn ghost" id="refreshRates" style="margin-top:10px">Refresh live rates</button>`
   );
+  $("#refreshRates").onclick = refreshLiveRates;
+}
+
+async function refreshLiveRates() {
+  const btn = $("#refreshRates");
+  if (btn) { btn.disabled = true; btn.textContent = "Fetching…"; }
+  try {
+    liveRates = await fetchLiveRates();
+    liveRatesError = null;
+  } catch (err) {
+    liveRatesError = err.message || String(err);
+  }
+  renderCurrencyBreakdown();
 }
 
 // --- the graph: one instance, moved between slots, never re-created ----------

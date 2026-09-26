@@ -43,6 +43,7 @@ In scope:
 - Reversal of an approved or separated decision, with a compensating audit entry
 - CSV/JSON ledger import, validated on-device, replacing the sample run until reset
 - On-device voice authorization, transcript confirmed before it applies
+- An optional live FX feed for the multi-currency headline, refreshed on request only
 - A held-out ablation (48 pairs) proving the embedding layer's contribution
 - An audit log
 - A visible offline demonstration
@@ -176,9 +177,13 @@ After approving Case 2 (Sunrise → Orbit): gross ₹61,40,000 → ₹7,80,000 (
 
 ### 8a. Multi-currency
 
-`net()` itself is untouched and currency-agnostic — it offsets whatever obligations it's handed as if they shared one currency. `netByCurrency(obligations, mapping, resolvedEntities, rates)` groups obligations by their `currency` field (absent = INR) and calls `net()` once per group, so **an INR payable and a USD payable are never netted against each other**; that would require a live FX feed and settlement-date handling this prototype doesn't have.
+`net()` itself is untouched and currency-agnostic — it offsets whatever obligations it's handed as if they shared one currency. `netByCurrency(obligations, mapping, resolvedEntities, rates)` groups obligations by their `currency` field (absent = INR) and calls `net()` once per group, so **an INR payable and a USD payable are never netted against each other**; that's a real FX-netting decision this prototype makes deliberately, not a gap.
 
-`RATES = { INR: 1, USD: 83, EUR: 90, AED: 22.6 }` — a fixed reference table, stated everywhere it's shown as **not a live feed** — is only used to roll each currency's own net figure into one glanceable INR headline. The Netting screen's per-currency table shows each currency's own gross/net/reduction; a currency with only one obligation (AED in the fixture) shows correctly as 0% reduction — there's nothing to net it against.
+`RATES = { INR: 1, USD: 83, EUR: 90, AED: 22.6 }` in `pipeline.js` is the fixed fallback, used only to roll each currency's own net figure into one glanceable INR headline — never for the per-currency netting itself. The Netting screen's per-currency table shows each currency's own gross/net/reduction; a currency with only one obligation (AED in the fixture) shows correctly as 0% reduction — there's nothing to net it against.
+
+A **"Refresh live rates"** button (`fx.js`) fetches spot rates from a free, keyless provider (`open.er-api.com`) on explicit request only — never at boot, and it goes through `window.fetch` like everything else, so the header's "Cut the network" toggle blocks it exactly like it blocks matching. A successful fetch is cached in `localStorage` and seeds the headline on the next page load without a network call; a failed refresh (network cut, provider down) is reported inline and the last-known rates (live or fixed) stay in effect — never a silent revert. The rates provider returns "1 INR = X currency"; `invertRates()` inverts each tracked currency to `pipeline.js`'s "1 currency = X INR" convention, pure and dependency-free so it's unit-tested without a network call.
+
+**Settlement-date policy (deliberately simple, stated rather than half-built):** spot/latest rates only. A real treasury system needs a trade-date-vs-settlement-date FX convention; this prototype doesn't attempt one.
 
 ---
 
@@ -217,7 +222,7 @@ The Proof screen plots this: fuzzy (x) against semantic (y), y-axis clamped to 0
 
 **Live** — two names, optional context, optional ID per side, three evidence checkboxes. Runs the six stages with visible progress. Any pair; the result is whatever the model and gate actually produce.
 
-**Netting** — the draft run as a live entity graph (`graph.js`, pure SVG): entities on a ring, unresolved counterparties floating below with dashed excluded edges, net position on each node. Approving an identity re-wires the graph and rolls the settlement number; reversing one un-merges it, with a caption calling out the reversal rather than silently snapping back. Below the draft (INR) figures, a per-currency table (§8a) shows every currency in the ledger. Recomputes on every decision.
+**Netting** — the draft run as a live entity graph (`graph.js`, pure SVG): entities on a ring, unresolved counterparties floating below with dashed excluded edges, net position on each node. Approving an identity re-wires the graph and rolls the settlement number; reversing one un-merges it, with a caption calling out the reversal rather than silently snapping back. Below the draft (INR) figures, a per-currency table (§8a) shows every currency in the ledger, with a "Refresh live rates" control for the INR headline. Recomputes on every decision.
 
 **Import** — upload a CSV or JSON settlement ledger; every row is validated on-device (missing fields, non-numeric or non-positive amounts, duplicate ids, self-referencing obligations, and — when the JSON carries an explicit entity roster — unknown entity ids), with every failure surfaced, never silently dropped. Applying swaps the Netting screen's graph and readout to the imported ledger (imported entities are pre-resolved by definition — there's no ambiguity to route through the Review queue for them); the Review queue's own governance demo is untouched by an active import, since it's a separate, self-contained pipeline walkthrough. Resetting returns to the sample ledger.
 
@@ -305,10 +310,10 @@ A ledger imported via the Import screen (§10) replaces this dataset's obligatio
 ## 17. Architecture
 
 - **No build step.** Plain ES modules, `<script type="module">`. No `package.json`, no bundler, no framework.
-- Files: `index.html`, `styles.css`, `app.js` (one file — module-scope init order is load-bearing), `pipeline.js` (pure logic, imported by browser and Node), `embed.js`, `fixture.js`, `graph.js`, `scatter.js`, `import.js` (CSV/JSON ledger parsing and validation, no dependency), `voice.js` (whisper-tiny.en loading and mic capture) + `voice-grammar.js` (pure intent matching, split out so it's testable without the model), `sw.js`, `test.mjs`, `serve.py` (no-cache dev server, port 8123, `ThreadingHTTPServer` so concurrent asset requests don't serialize), `fonts/` (self-hosted, SIL OFL), `vercel.json`, `.nojekyll`.
+- Files: `index.html`, `styles.css`, `app.js` (one file — module-scope init order is load-bearing), `pipeline.js` (pure logic, imported by browser and Node), `embed.js`, `fixture.js`, `graph.js`, `scatter.js`, `import.js` (CSV/JSON ledger parsing and validation, no dependency), `voice.js` (whisper-tiny.en loading and mic capture) + `voice-grammar.js` (pure intent matching, split out so it's testable without the model), `fx.js` (live FX rate fetch/cache + `invertRates()`, the same pure/impure split as voice.js), `sw.js`, `test.mjs`, `serve.py` (no-cache dev server, port 8123, `ThreadingHTTPServer` so concurrent asset requests don't serialize), `fonts/` (self-hosted, SIL OFL), `vercel.json`, `.nojekyll`.
 - Fonts self-hosted because `sw.js` only caches same-origin — a CDN font would bypass the worker and break offline. Schibsted Grotesk (display), IBM Plex Mono (all numerals — the full upstream release; the Google CDN subset drops ₹ U+20B9).
 - Deploy: Vercel (`lumine-opal.vercel.app`) and GitHub Pages (`oxyrine.github.io/Lumine`). Both zero-config static; `vercel.json` only forces `no-cache` on `sw.js`.
-- Tests: `node test.mjs` — 34 assertions over gate outcomes, netting math (including multi-currency and dual-control exposure), ablation routing, ledger import validation, and the voice-authorization grammar. Authoritative for logic; must stay green. (Model-loading code — `embed.js`, `voice.js` — is deliberately never imported by `test.mjs`, so the suite stays network-free.)
+- Tests: `node test.mjs` — 36 assertions over gate outcomes, netting math (including multi-currency and dual-control exposure), ablation routing, ledger import validation, the voice-authorization grammar, and live-FX rate inversion. Authoritative for logic; must stay green. (Network- or model-dependent code — `embed.js`, the fetch/cache half of `voice.js` and `fx.js` — is deliberately kept out of what `test.mjs` imports, so the suite stays network-free.)
 
 ---
 
@@ -324,27 +329,29 @@ Stated on the Audit tab, not hidden:
 - Snapdragon NPU delegate execution — needs the physical device to verify against; WASM here
 - Real vendor-master / ERP integration — the Import screen's CSV/JSON parser (§10) is the
   honest stand-in; there is no live API connection
-- Live FX feed for the multi-currency headline (§8a) — the conversion table is a fixed
-  reference set, restated everywhere it's shown
+- Voice authorization has never been exercised against real speech end-to-end — the grammar
+  logic is unit-tested and the mic-denied error path is live-verified (§7b), but the actual
+  transcription step needs a real microphone to confirm
 
 This is a small, genuine list, not a scope statement for a submission deadline. Everything
 else originally deferred (dual control, multi-currency netting, reversal, the 48-case
-ablation fixture, CSV/JSON import, voice authorization) has since been built and is
-described in the sections above.
+ablation fixture, CSV/JSON import, voice authorization, a live FX feed) has since been built
+and is described in the sections above.
 
 ---
 
 ## 20. Roadmap
 
-What's left is each a materially larger undertaking than anything built so far, not a short
-follow-up:
+What's left needs something this project's own development environment doesn't have —
+physical hardware, a real target system, or a real microphone — not more coding time:
 
-- **Snapdragon NPU delegate** for the embedding (and, now, whisper) models — needs the
+- **Snapdragon NPU delegate** for the embedding (and whisper) models — needs the
   physical hardware to build and verify against.
 - **Real ERP/vendor-master connector** in place of CSV/JSON import — an actual API
-  integration, with its own auth, pagination, and schema-mapping concerns.
-- **Live FX feed** for the multi-currency headline, replacing the fixed reference table
-  (§8a) — needs a rate provider and a decision on settlement-date handling.
+  integration, with its own auth, pagination, and schema-mapping concerns, against a
+  concrete target system not yet chosen.
+- **Voice authorization on real hardware** — confirm whisper-tiny.en's transcription
+  accuracy against actual speech, and the model-load UX on first use.
 
 ---
 
@@ -356,18 +363,19 @@ follow-up:
   Re-deriving `HIGH` is a one-time sweep against a labelled set, never a per-case tune.
 - `fuzzyScore` is deliberately weak (Dice over bigrams; no phonetic, no token alignment). It is the ablation baseline, not a shipping matcher.
 - The netting model is central-clearing (one leg per non-zero net position). A bilateral or multilateral-with-limits model would produce different leg counts; the footnote on the Netting screen states the assumption so it is not challengeable.
-- Multi-currency netting never nets across currencies (§8a) — each currency is netted only against itself; the INR headline is a fixed-rate rollup for a single glanceable number.
+- Multi-currency netting never nets across currencies (§8a) — each currency is netted only against itself; the INR headline is a rollup for a single glanceable number, at live rates when refreshed or a fixed fallback otherwise, and always at spot — no trade-date/settlement-date convention.
 - Three review cases, six entities. Small by design — the point is a legible walkthrough of the governance gate, not a stress test (the 48-case ablation fixture is where the stress test lives).
 
 ---
 
 ## 22. Verification
 
-- `node test.mjs` → 32 passed.
+- `node test.mjs` → 36 passed.
 - `python serve.py 8123`, open in a browser: no console errors, no horizontal overflow, six tabs render, the three cases score to `AUTO_MERGE` / `REVIEW_REQUIRED` / `KEEP_SEPARATE`.
 - Approve Case 2 → dual control engages (§7a); after counter-approval the netting numbers change and the graph re-wires (on the wide layout, without navigating). Reverse it → numbers and graph return, both audit entries present, the original struck through.
 - Run the 48-pair evaluation → completes without freezing the UI; the plot stays legible; the reported numbers match what `scoreAblation` actually returns (§9).
 - Import a deliberately malformed ledger → every bad row is named, nothing is silently dropped; a valid import re-wires the graph to the new topology; reset restores the sample ledger's numbers exactly.
 - Voice authorize a case → the transcript is shown back before anything applies; confirming routes through the same approve/keep-separate path as the on-screen buttons and the audit line is tagged accordingly; a misheard or unrecognized utterance never commits on its own.
+- Refresh live rates → the INR headline updates from a real fetch, timestamp and source shown, and the per-currency table (each currency netted only against itself) is unaffected. A refresh with the network cut fails inline without discarding the last-known rates.
 - Cut the network → a Live run still resolves; fonts still render (proves self-hosting).
 - Both breakpoints: ~390 px and ~1440 px. Cross 900 px repeatedly — the graph survives the slot move with its state intact.

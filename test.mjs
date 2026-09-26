@@ -4,6 +4,7 @@ import { normalize, fuzzyScore, idCheck, gate, net, HIGH, ablationRoute, scoreAb
 import { OBLIGATIONS, ENTITIES } from "./fixture.js";
 import { parseCSV, parseJSON, validateLedger, SAMPLE_CSV } from "./import.js";
 import { matchIntent } from "./voice-grammar.js";
+import { invertRates } from "./fx.js";
 
 let pass = 0;
 const t = (name, fn) => {
@@ -232,6 +233,23 @@ t("matchIntent: an unrecognized or empty utterance returns null, never a guess",
   assert.equal(matchIntent("the weather is nice today"), null);
   assert.equal(matchIntent(""), null);
   assert.equal(matchIntent(undefined), null);
+});
+
+// --- live FX rate inversion (pure; the fetch/localStorage half of fx.js is
+// exercised live in a browser, not here — same reasoning as embed.js/voice.js) ---
+t("invertRates: converts \"1 INR = X ccy\" to pipeline.js's \"1 ccy = X INR\" convention", () => {
+  const r = invertRates({ USD: 0.01, EUR: 0.009, AED: 0.0368, GBP: 0.0075 });
+  assert.equal(r.INR, 1);
+  assert.ok(Math.abs(r.USD - 100) < 0.001);
+  assert.ok(Math.abs(r.EUR - (1 / 0.009)) < 0.001);
+  assert.ok(Math.abs(r.AED - (1 / 0.0368)) < 0.001);
+  assert.equal(r.GBP, undefined); // untracked by fixture.js — ignored, not fabricated
+});
+t("invertRates: skips a missing or non-positive rate rather than dividing by zero", () => {
+  const r = invertRates({ USD: 0.01, EUR: 0, AED: -1 });
+  assert.ok(Number.isFinite(r.USD));
+  assert.equal(r.EUR, undefined);
+  assert.equal(r.AED, undefined);
 });
 
 console.log(`\n${pass} passed`);
