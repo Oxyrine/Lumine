@@ -142,6 +142,17 @@
           </div>
           <button class="runbtn ghost" id="importReset" style="margin-top:10px">Reset to sample ledger</button>
         </div>
+
+        <div class="shead quiet" style="margin-top:28px">
+          <div class="eyebrow">Connect to your ERP</div>
+          <h2 style="font-size:1.1rem">Zoho Books vendor ledger</h2>
+          <p class="sub">Pulls vendors and unpaid bills only &mdash; the same pattern would extend to
+          invoices/customers, not built here. Deployed-site only: this needs the Vercel serverless
+          function, so it won't work under <code>python serve.py</code>.</p>
+        </div>
+        <div class="card">
+          <div id="zohoStatus"><button class="runbtn" id="zohoConnect">Connect Zoho Books<span class="ib" aria-hidden="true">&rarr;</span></button></div>
+        </div>
       </section>
 
       <section id="proof">
@@ -168,7 +179,8 @@
           <p>Stated here, not hidden:</p>
           <ul>
             <li>Snapdragon NPU delegate execution &mdash; needs the physical device; WASM here</li>
-            <li>Real vendor-master / ERP integration &mdash; the Import tab's CSV/JSON parser is the honest stand-in, no live API connection</li>
+            <li>The Zoho Books connector is built and unit-tested but never exercised against a real account end-to-end &mdash; registering the OAuth app and signing in are steps only a human can complete</li>
+            <li>Voice authorization has never been exercised against real speech end-to-end &mdash; needs a real microphone to confirm</li>
           </ul>
         </div>
       </section>
@@ -195,6 +207,12 @@
 
 <div id="graphHost" class="graphwrap"></div>
 
+<script>
+  // Public OAuth client id (safe to ship — Zoho's client SECRET stays server-side in
+  // api/zoho-callback.js and is never referenced here). Paste yours after registering
+  // an app at https://api-console.zoho.com/ — see README.md's setup section.
+  window.LUMINE_ZOHO_CLIENT_ID = "";
+</script>
 <script type="module" src="./app.js"></script>
 <script>
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});

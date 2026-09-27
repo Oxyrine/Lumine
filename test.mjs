@@ -5,6 +5,7 @@ import { OBLIGATIONS, ENTITIES } from "./fixture.js";
 import { parseCSV, parseJSON, validateLedger, SAMPLE_CSV } from "./import.js";
 import { matchIntent } from "./voice-grammar.js";
 import { invertRates } from "./fx.js";
+import { mapZohoToLedger } from "./zoho-mapping.js";
 
 let pass = 0;
 const t = (name, fn) => {
@@ -250,6 +251,54 @@ t("invertRates: skips a missing or non-positive rate rather than dividing by zer
   assert.ok(Number.isFinite(r.USD));
   assert.equal(r.EUR, undefined);
   assert.equal(r.AED, undefined);
+});
+
+// --- Zoho Books mapping (pure; the OAuth/fetch half of zoho.js and the token exchange
+// in api/zoho-callback.js are exercised live on the deployed site, not here) ---
+t("mapZohoToLedger: builds org + vendor entities and org->vendor obligations from unpaid bills", () => {
+  const r = mapZohoToLedger({
+    organizationId: "999",
+    organizationName: "Acme Treasury",
+    vendors: [
+      { contact_id: "v1", contact_name: "Riverside Supplies" },
+      { contact_id: "v2", contact_name: "Haldane Freight" },
+    ],
+    bills: [
+      { bill_id: "b1", vendor_id: "v1", balance: 12000, currency_code: "INR" },
+      { bill_id: "b2", vendor_id: "v2", balance: 500, currency_code: "USD" },
+    ],
+  });
+  assert.deepEqual(r.entities.map((e) => e.id), ["zoho:org:999", "zoho:vendor:v1", "zoho:vendor:v2"]);
+  assert.equal(r.entities[0].label, "Acme Treasury");
+  assert.equal(r.obligations.length, 2);
+  assert.deepEqual(r.obligations[0], { id: "zoho:bill:b1", from: "zoho:org:999", to: "zoho:vendor:v1", amount: 12000, currency: "INR" });
+  assert.equal(r.obligations[1].currency, "USD");
+});
+
+t("mapZohoToLedger: a fully-paid bill (balance 0) is excluded, not just zeroed", () => {
+  const r = mapZohoToLedger({
+    organizationId: "1", organizationName: "Org",
+    vendors: [{ contact_id: "v1", contact_name: "Vendor" }],
+    bills: [
+      { bill_id: "paid", vendor_id: "v1", balance: 0, currency_code: "INR" },
+      { bill_id: "unpaid", vendor_id: "v1", balance: 100, currency_code: "INR" },
+    ],
+  });
+  assert.equal(r.obligations.length, 1);
+  assert.equal(r.obligations[0].id, "zoho:bill:unpaid");
+});
+
+t("mapZohoToLedger: a bill for a vendor missing from the fetched list is passed through, not silently dropped — validateLedger then catches it as an unknown entity", () => {
+  const r = mapZohoToLedger({
+    organizationId: "1", organizationName: "Org",
+    vendors: [{ contact_id: "v1", contact_name: "Known Vendor" }],
+    bills: [{ bill_id: "b1", vendor_id: "v-archived", balance: 500, currency_code: "INR" }],
+  });
+  assert.equal(r.obligations.length, 1);
+  assert.equal(r.obligations[0].to, "zoho:vendor:v-archived");
+  const validated = validateLedger({ entities: r.entities, obligations: r.obligations.map((o, i) => ({ row: i + 1, ...o })) });
+  assert.equal(validated.obligations.length, 0);
+  assert.ok(validated.errors[0].message.includes("unknown entity id"));
 });
 
 console.log(`\n${pass} passed`);

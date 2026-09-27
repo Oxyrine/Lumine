@@ -46,7 +46,8 @@ netting run.
   "Refresh live rates" button — otherwise a fixed reference table.
 - **Import** — upload a CSV or JSON settlement ledger; every row is validated on-device
   (bad rows are named, never silently dropped), and applying it swaps the Netting screen to
-  the imported ledger until reset.
+  the imported ledger until reset. Also has a "Connect Zoho Books" option — pulls vendors
+  and unpaid bills through the same validation path (deployed site only; see setup below).
 - **Voice authorize** — on the Review detail, speak "approve" or "keep separate"; the
   utterance is transcribed on-device (`Xenova/whisper-tiny.en`, not the browser's built-in
   `SpeechRecognition` — that's server-backed) and shown back for confirmation before it
@@ -64,21 +65,44 @@ degrades to a working app (two of three cases still resolve) if the model never 
 
 ```bash
 python serve.py 8123      # no-cache static server; or `python -m http.server`
-node test.mjs             # gate logic, netting math, ablation routing, ledger + voice-grammar + FX validation — no model needed, 36 assertions
+node test.mjs             # gate logic, netting math, ablation routing, ledger + voice-grammar + FX + Zoho-mapping validation — no model needed, 39 assertions
 ```
 
 ES modules need `http://`, not `file://`. First load downloads ~23 MB of model weights (plus
 ~40 MB more, lazily, the first time voice authorization is used).
+
+## Setting up the Zoho Books connector (optional)
+
+Only needed if you want "Connect Zoho Books" to actually work — everything else in the app
+runs with zero setup. This is the one non-static part of Lumine; `python serve.py` can't run
+it, only the deployed Vercel site (or `vercel dev` locally).
+
+Run `scripts/setup-zoho.sh` for a guided walkthrough of all five steps below (it opens the
+right pages, tells you exactly what to paste where, and patches `index.html`'s client id
+line for you — it never asks for or stores the client secret, that only ever goes into
+Vercel's own dashboard). Or do it by hand:
+
+1. Register a **Server-based Application** at https://api-console.zoho.com/. Redirect URI:
+   `https://<your-deployment>/api/zoho-callback`.
+2. In `index.html`, set `window.LUMINE_ZOHO_CLIENT_ID` to the client ID (public, safe to
+   commit — it's not the secret).
+3. In your Vercel project settings, add environment variables `ZOHO_CLIENT_ID` (same value
+   as above), `ZOHO_CLIENT_SECRET`, and `ZOHO_REDIRECT_URI` (the same URL as step 1).
+4. `zoho.js`'s `DC` constant defaults to `"in"` (Zoho's India data center) — change it (and
+   the matching constant in `api/zoho-proxy.js`) if your account is on a different one.
+5. You'll need a Zoho Books organization with at least one vendor and bill to see anything
+   after connecting.
 
 ## Honest scope
 
 - Runs in-browser on WASM today. A Snapdragon NPU delegate for the same architecture is a
   known follow-up, not built here — it needs the physical hardware to verify against.
 - The model is pretrained, inference only. No training on settlement data.
-- **Current limitations** (spec §19): NPU delegate execution, real vendor-master/ERP
-  integration (the CSV/JSON import is the honest stand-in — no live API connection), and
-  voice authorization has never been exercised against real speech end-to-end (needs a real
-  microphone to confirm).
+- **Current limitations** (spec §19): NPU delegate execution; the Zoho Books connector is
+  built and unit-tested but never exercised against a real account end-to-end (registering
+  the OAuth app and signing in are both things only a human can do); and voice authorization
+  has never been exercised against real speech end-to-end (needs a real microphone to
+  confirm).
 - Data is synthetic (`fixture.js`): six entities, sixteen obligations across four
   currencies, three review cases, 48 labelled ablation pairs.
 
@@ -95,7 +119,11 @@ ES modules need `http://`, not `file://`. First load downloads ~23 MB of model w
 | `voice.js` | `Xenova/whisper-tiny.en` via `transformers.js` — mic capture, on-device transcription, loaded lazily on first use. |
 | `voice-grammar.js` | Pure approve/keep-separate/cancel phrase matching — no model dependency, so it's unit-testable without pulling in the CDN import. |
 | `fx.js` | Live FX rate fetch (on request only) + localStorage cache for the multi-currency headline; `invertRates()` is pure and unit-tested. |
+| `zoho.js` | Zoho Books OAuth redirect + API client, via `api/zoho-proxy.js` (direct browser calls are CORS-blocked by Zoho's API). |
+| `zoho-mapping.js` | Pure vendor/bill → `import.js`-shaped ledger mapping, unit-tested without a network call. |
+| `api/zoho-callback.js` | Vercel serverless function — the only place the Zoho client secret is read; OAuth token exchange. |
+| `api/zoho-proxy.js` | Vercel serverless function — proxies authenticated Books API reads past Zoho's CORS restriction. |
 | `app.js` | UI wiring and state. |
 | `styles.css` | The design system. Fonts self-hosted under `fonts/` (SIL OFL) so offline holds. |
 | `sw.js` | Network-first service worker over the app shell — fresh files in dev, cache fallback offline. |
-| `test.mjs` | `node test.mjs` — asserts gate outcomes, netting math, ablation routing, ledger import validation, the voice-authorization grammar, and FX rate inversion. |
+| `test.mjs` | `node test.mjs` — asserts gate outcomes, netting math, ablation routing, ledger import validation, the voice-authorization grammar, FX rate inversion, and the Zoho vendor/bill mapping. |

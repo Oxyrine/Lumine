@@ -6,6 +6,7 @@ import { createScatter } from "./scatter.js";
 import { parseCSV, parseJSON, validateLedger, SAMPLE_CSV } from "./import.js";
 import { recordAndTranscribe, matchIntent } from "./voice.js";
 import { fetchLiveRates, getCachedRates } from "./fx.js";
+import { startZohoAuth, consumeAuthFragment, disconnectZoho, fetchOrganizations, fetchVendorLedger } from "./zoho.js";
 
 // --------------------------------------------------------------------------
 // state
@@ -939,6 +940,17 @@ function renderImportPreview(ledger) {
   );
 }
 
+// Shared tail for every ledger source (file upload, sample CSV, a Zoho pull): validate,
+// stage as pendingLedger, render the preview/error list. Nothing is ever applied to the
+// netting run from here — only the explicit "Apply" button does that.
+function applyParsedLedger(parsed) {
+  const result = validateLedger(parsed);
+  renderImportErrors(result.errors);
+  renderImportPreview(result);
+  pendingLedger = result.obligations.length ? result : null;
+  $("#importApply").disabled = !pendingLedger;
+}
+
 function ingestLedgerText(text, filename) {
   const looksJSON = /\.json$/i.test(filename) || text.trim().startsWith("{") || text.trim().startsWith("[");
   let parsed;
@@ -951,11 +963,7 @@ function ingestLedgerText(text, filename) {
     renderImportPreview(null);
     return;
   }
-  const result = validateLedger(parsed);
-  renderImportErrors(result.errors);
-  renderImportPreview(result);
-  pendingLedger = result.obligations.length ? result : null;
-  $("#importApply").disabled = !pendingLedger;
+  applyParsedLedger(parsed);
 }
 
 $("#importFile").onchange = (e) => {
@@ -1004,10 +1012,90 @@ $("#importReset").onclick = () => {
 };
 
 // --------------------------------------------------------------------------
+// Zoho Books connector — the roadmap's "real vendor-master/ERP integration" item.
+// Vendors + unpaid bills only (spec §19); a pulled ledger feeds the exact same
+// validateLedger()/pendingLedger/Apply path as a CSV or JSON upload, via
+// applyParsedLedger() above. Deployed-site only: needs api/zoho-callback.js, which
+// python serve.py can't run.
+// --------------------------------------------------------------------------
+let zohoToken = null;
+let zohoOrgs = [];
+
+function renderZohoStatus(state = {}) {
+  const host = $("#zohoStatus");
+  if (!host) return;
+  const { orgs = zohoOrgs, selectedOrg = null, error = null, message = null, loading = false } = state;
+
+  if (!zohoToken) {
+    setHTML(host, `<button class="runbtn" id="zohoConnect">Connect Zoho Books<span class="ib" aria-hidden="true">&rarr;</span></button>` +
+      (error ? html`<div class="foot" style="margin-top:10px">${error}</div>` : ""));
+    $("#zohoConnect").onclick = () => {
+      try { startZohoAuth(); }
+      catch (e) { renderZohoStatus({ error: e.message || String(e) }); }
+    };
+    return;
+  }
+
+  const orgOptions = orgs.map((o) => html`<option value="${o.organization_id}"${selectedOrg?.organization_id === o.organization_id ? " selected" : ""}>${o.name}</option>`).join("");
+  const picker = orgs.length > 1
+    ? `<label>Organization</label><select id="zohoOrgPicker">${orgOptions}</select>`
+    : "";
+
+  setHTML(host,
+    `${picker}
+     <div class="actions" style="margin-top:10px">
+       <button class="btn-approve primary" id="zohoPull"${loading || !selectedOrg ? " disabled" : ""}>${loading ? "Pulling…" : "Pull vendor ledger"}</button>
+       <button class="btn-separate" id="zohoDisconnect">Disconnect</button>
+     </div>` +
+    (message ? html`<div class="foot" style="margin-top:10px">${message}</div>` : "") +
+    (error ? html`<div class="foot" style="margin-top:10px">${error}</div>` : "")
+  );
+
+  if (orgs.length > 1) {
+    $("#zohoOrgPicker").onchange = (e) => {
+      const org = orgs.find((o) => o.organization_id === e.target.value);
+      renderZohoStatus({ orgs, selectedOrg: org });
+    };
+  }
+  $("#zohoDisconnect").onclick = () => {
+    disconnectZoho();
+    zohoToken = null;
+    zohoOrgs = [];
+    renderZohoStatus();
+  };
+  $("#zohoPull").onclick = async () => {
+    if (!selectedOrg) return;
+    renderZohoStatus({ orgs, selectedOrg, loading: true });
+    try {
+      const parsed = await fetchVendorLedger(zohoToken, selectedOrg.organization_id, selectedOrg.name);
+      applyParsedLedger(parsed);
+      renderZohoStatus({ orgs, selectedOrg, message: `Pulled ${parsed.entities.length} entities, ${parsed.obligations.length} unpaid obligation(s). Review below, then Apply to netting run.` });
+    } catch (e) {
+      renderZohoStatus({ orgs, selectedOrg, error: `Pull failed: ${e.message || e}` });
+    }
+  };
+}
+
+async function initZohoConnection() {
+  const { token, error } = consumeAuthFragment();
+  zohoToken = token;
+  if (error) { renderZohoStatus({ error: `Connection failed: ${error}` }); return; }
+  if (!zohoToken) { renderZohoStatus(); return; }
+
+  renderZohoStatus({ loading: true });
+  try {
+    zohoOrgs = await fetchOrganizations(zohoToken);
+    renderZohoStatus({ orgs: zohoOrgs, selectedOrg: zohoOrgs[0] || null });
+  } catch (e) {
+    renderZohoStatus({ error: `Could not load organizations: ${e.message || e}` });
+  }
+}
+
 $("#runDemo").onclick = startDemo;
 $("#runAblation").onclick = runAblation;
 scoreIdCases();   // ID-decided cases land now, before the model finishes
 renderAudit();
+initZohoConnection(); // reads any ?code=/#zoho_access_token= left by api/zoho-callback.js
 
 // No cold-open overlay (rollback): nothing lifts it, so score everything and
 // dismiss immediately.

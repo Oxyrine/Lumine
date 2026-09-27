@@ -44,6 +44,7 @@ In scope:
 - CSV/JSON ledger import, validated on-device, replacing the sample run until reset
 - On-device voice authorization, transcript confirmed before it applies
 - An optional live FX feed for the multi-currency headline, refreshed on request only
+- A real ERP connector (Zoho Books — vendors and unpaid bills) alongside the CSV/JSON import
 - A held-out ablation (48 pairs) proving the embedding layer's contribution
 - An audit log
 - A visible offline demonstration
@@ -226,6 +227,31 @@ The Proof screen plots this: fuzzy (x) against semantic (y), y-axis clamped to 0
 
 **Import** — upload a CSV or JSON settlement ledger; every row is validated on-device (missing fields, non-numeric or non-positive amounts, duplicate ids, self-referencing obligations, and — when the JSON carries an explicit entity roster — unknown entity ids), with every failure surfaced, never silently dropped. Applying swaps the Netting screen's graph and readout to the imported ledger (imported entities are pre-resolved by definition — there's no ambiguity to route through the Review queue for them); the Review queue's own governance demo is untouched by an active import, since it's a separate, self-contained pipeline walkthrough. Resetting returns to the sample ledger.
 
+### 10a. Real ERP integration: Zoho Books
+
+"Connect Zoho Books" runs a real OAuth2 authorization-code flow, then a "Pull vendor ledger"
+fetches vendors and unpaid bills and feeds them through the exact same `validateLedger()` →
+preview/errors → Apply path as a CSV/JSON upload (`zoho-mapping.js`'s `mapZohoToLedger()`
+produces `import.js`'s ledger shape directly). Scope is deliberately narrow — vendors and
+unpaid bills only; Zoho Books also has Invoices/Customers (money owed *to* the org), same
+pattern, not built here.
+
+This is the one part of Lumine that isn't a static site. Two small Vercel serverless
+functions exist only for this feature:
+- `api/zoho-callback.js` — the only place `ZOHO_CLIENT_SECRET` is ever read; exchanges the
+  OAuth code for a short-lived access token and redirects back with it in the URL fragment
+  (never a response body, never sent to any server on a later request).
+- `api/zoho-proxy.js` — a generic authenticated GET proxy to the Books API. Confirmed live
+  that Zoho's API sends no `Access-Control-Allow-Origin` header, so a direct browser fetch
+  is blocked outright regardless of token validity; a Node function has no such restriction
+  since CORS is a browser policy, not a server one.
+
+Deliberately not built: refresh-token persistence (no database exists to hold one securely
+between requests — the access token lives in `sessionStorage` and the user reconnects after
+~1hr), and anything beyond vendors/bills. This feature only works on the deployed site (or
+`vercel dev` locally) — `python serve.py` is a static file server and can't run either
+function, so it 404s there by design.
+
 **Proof** — the ablation, plotted then tabulated (§9). "Run evaluation" computes all 48 pairs on-device.
 
 **Audit** — every decision in the §14 format, plus the current-limitations list.
@@ -309,11 +335,11 @@ A ledger imported via the Import screen (§10) replaces this dataset's obligatio
 
 ## 17. Architecture
 
-- **No build step.** Plain ES modules, `<script type="module">`. No `package.json`, no bundler, no framework.
-- Files: `index.html`, `styles.css`, `app.js` (one file — module-scope init order is load-bearing), `pipeline.js` (pure logic, imported by browser and Node), `embed.js`, `fixture.js`, `graph.js`, `scatter.js`, `import.js` (CSV/JSON ledger parsing and validation, no dependency), `voice.js` (whisper-tiny.en loading and mic capture) + `voice-grammar.js` (pure intent matching, split out so it's testable without the model), `fx.js` (live FX rate fetch/cache + `invertRates()`, the same pure/impure split as voice.js), `sw.js`, `test.mjs`, `serve.py` (no-cache dev server, port 8123, `ThreadingHTTPServer` so concurrent asset requests don't serialize), `fonts/` (self-hosted, SIL OFL), `vercel.json`, `.nojekyll`.
+- **No build step, one deliberate exception.** Plain ES modules, `<script type="module">`. No `package.json`, no bundler, no framework — except `api/zoho-callback.js` and `api/zoho-proxy.js` (§10a), the two Vercel serverless functions the Zoho Books connector needs. Both are CommonJS specifically so the repo still needs no `package.json` (Vercel's default Node runtime treats a bare `.js` file as CommonJS without one).
+- Files: `index.html`, `styles.css`, `app.js` (one file — module-scope init order is load-bearing), `pipeline.js` (pure logic, imported by browser and Node), `embed.js`, `fixture.js`, `graph.js`, `scatter.js`, `import.js` (CSV/JSON ledger parsing and validation, no dependency), `voice.js` (whisper-tiny.en loading and mic capture) + `voice-grammar.js` (pure intent matching, split out so it's testable without the model), `fx.js` (live FX rate fetch/cache + `invertRates()`, the same pure/impure split as voice.js), `zoho.js` (OAuth redirect + Books API client) + `zoho-mapping.js` (pure vendor/bill → ledger mapping, same split again) + `api/zoho-callback.js` + `api/zoho-proxy.js` (§10a), `sw.js`, `test.mjs`, `serve.py` (no-cache dev server, port 8123, `ThreadingHTTPServer` so concurrent asset requests don't serialize), `fonts/` (self-hosted, SIL OFL), `vercel.json`, `.nojekyll`, `scripts/setup-zoho.sh` (guided provisioning wizard for §10a — opens the right pages, never touches the client secret).
 - Fonts self-hosted because `sw.js` only caches same-origin — a CDN font would bypass the worker and break offline. Schibsted Grotesk (display), IBM Plex Mono (all numerals — the full upstream release; the Google CDN subset drops ₹ U+20B9).
-- Deploy: Vercel (`lumine-opal.vercel.app`) and GitHub Pages (`oxyrine.github.io/Lumine`). Both zero-config static; `vercel.json` only forces `no-cache` on `sw.js`.
-- Tests: `node test.mjs` — 36 assertions over gate outcomes, netting math (including multi-currency and dual-control exposure), ablation routing, ledger import validation, the voice-authorization grammar, and live-FX rate inversion. Authoritative for logic; must stay green. (Network- or model-dependent code — `embed.js`, the fetch/cache half of `voice.js` and `fx.js` — is deliberately kept out of what `test.mjs` imports, so the suite stays network-free.)
+- Deploy: Vercel (`lumine-opal.vercel.app`) and GitHub Pages (`oxyrine.github.io/Lumine`). Both zero-config static aside from the two Zoho functions, which GitHub Pages can't run at all — the connector is Vercel-only; `vercel.json` only forces `no-cache` on `sw.js`.
+- Tests: `node test.mjs` — 39 assertions over gate outcomes, netting math (including multi-currency and dual-control exposure), ablation routing, ledger import validation, the voice-authorization grammar, live-FX rate inversion, and the Zoho vendor/bill mapping. Authoritative for logic; must stay green. (Network-, model-, or server-only code — `embed.js`, the fetch/cache half of `voice.js` and `fx.js`, `zoho.js`, both `api/` functions — is deliberately kept out of what `test.mjs` imports, so the suite stays network-free.)
 
 ---
 
@@ -327,29 +353,33 @@ Editorial-treasury system. White canvas, navy ink (`#0a2540`), one indigo voltag
 
 Stated on the Audit tab, not hidden:
 - Snapdragon NPU delegate execution — needs the physical device to verify against; WASM here
-- Real vendor-master / ERP integration — the Import screen's CSV/JSON parser (§10) is the
-  honest stand-in; there is no live API connection
+- The Zoho Books connector (§10a) has never been exercised against a real account
+  end-to-end — the mapping logic is unit-tested and every client-side error path (missing
+  client id, OAuth error, CORS) is live-verified, but registering a real Zoho OAuth app and
+  signing into a real account are both things only a human can do; that step is still open
 - Voice authorization has never been exercised against real speech end-to-end — the grammar
   logic is unit-tested and the mic-denied error path is live-verified (§7b), but the actual
   transcription step needs a real microphone to confirm
 
 This is a small, genuine list, not a scope statement for a submission deadline. Everything
 else originally deferred (dual control, multi-currency netting, reversal, the 48-case
-ablation fixture, CSV/JSON import, voice authorization, a live FX feed) has since been built
-and is described in the sections above.
+ablation fixture, CSV/JSON import, voice authorization, a live FX feed, a real ERP
+connector) has since been built and is described in the sections above.
 
 ---
 
 ## 20. Roadmap
 
 What's left needs something this project's own development environment doesn't have —
-physical hardware, a real target system, or a real microphone — not more coding time:
+physical hardware, a real microphone, or a human completing a real third-party sign-in —
+not more coding time:
 
 - **Snapdragon NPU delegate** for the embedding (and whisper) models — needs the
   physical hardware to build and verify against.
-- **Real ERP/vendor-master connector** in place of CSV/JSON import — an actual API
-  integration, with its own auth, pagination, and schema-mapping concerns, against a
-  concrete target system not yet chosen.
+- **A real Zoho Books account connected end-to-end** — §10a is built and unit-tested, but
+  confirming it against real vendor/bill data needs a human to register the OAuth app and
+  sign in through Zoho's real consent screen (outside what an agent can do on someone's
+  behalf). Past that: Invoices/Customers (money owed *to* the org) via the same pattern.
 - **Voice authorization on real hardware** — confirm whisper-tiny.en's transcription
   accuracy against actual speech, and the model-load UX on first use.
 
@@ -370,12 +400,13 @@ physical hardware, a real target system, or a real microphone — not more codin
 
 ## 22. Verification
 
-- `node test.mjs` → 36 passed.
+- `node test.mjs` → 39 passed.
 - `python serve.py 8123`, open in a browser: no console errors, no horizontal overflow, six tabs render, the three cases score to `AUTO_MERGE` / `REVIEW_REQUIRED` / `KEEP_SEPARATE`.
 - Approve Case 2 → dual control engages (§7a); after counter-approval the netting numbers change and the graph re-wires (on the wide layout, without navigating). Reverse it → numbers and graph return, both audit entries present, the original struck through.
 - Run the 48-pair evaluation → completes without freezing the UI; the plot stays legible; the reported numbers match what `scoreAblation` actually returns (§9).
 - Import a deliberately malformed ledger → every bad row is named, nothing is silently dropped; a valid import re-wires the graph to the new topology; reset restores the sample ledger's numbers exactly.
 - Voice authorize a case → the transcript is shown back before anything applies; confirming routes through the same approve/keep-separate path as the on-screen buttons and the audit line is tagged accordingly; a misheard or unrecognized utterance never commits on its own.
 - Refresh live rates → the INR headline updates from a real fetch, timestamp and source shown, and the per-currency table (each currency netted only against itself) is unaffected. A refresh with the network cut fails inline without discarding the last-known rates.
+- Connect Zoho Books without a client id configured → an inline error, not an uncaught exception; a `#zoho_error=...` fragment left by `api/zoho-callback.js` renders inline and the fragment is stripped from the URL; a stored access token attempting to load organizations fails cleanly through `api/zoho-proxy.js` (never a direct cross-origin call — confirmed that fails with a CORS error if attempted). A real end-to-end pull is not verifiable without a live Zoho account (§19/§20).
 - Cut the network → a Live run still resolves; fonts still render (proves self-hosting).
 - Both breakpoints: ~390 px and ~1440 px. Cross 900 px repeatedly — the graph survives the slot move with its state intact.
