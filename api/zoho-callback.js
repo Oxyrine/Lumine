@@ -12,9 +12,14 @@
 const ACCOUNTS_BASE = "https://accounts.zoho.in"; // keep in sync with zoho.js's DC
 
 module.exports = async (req, res) => {
-  const { code, error } = req.query;
+  const { code, error, state } = req.query;
   const site = `https://${req.headers.host}`;
-  const redirect = (fragment) => { res.writeHead(302, { Location: `${site}/#${fragment}` }); res.end(); };
+  // Relays `state` through every redirect unchanged — this function has no session to
+  // check it against, so zoho.js's consumeAuthFragment() verifies it against what it
+  // stashed in sessionStorage before redirecting here (see zoho.js for the CSRF threat
+  // this defends against).
+  const stateSuffix = state ? `&zoho_state=${encodeURIComponent(state)}` : "";
+  const redirect = (fragment) => { res.writeHead(302, { Location: `${site}/#${fragment}${stateSuffix}` }); res.end(); };
 
   if (error) return redirect(`zoho_error=${encodeURIComponent(error)}`);
   if (!code) return redirect(`zoho_error=${encodeURIComponent("missing authorization code")}`);

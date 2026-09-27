@@ -23,6 +23,7 @@ const DC = "in"; // Zoho data center — .in given Lumine's GSTIN-first framing;
 const ACCOUNTS_BASE = `https://accounts.zoho.${DC}`;
 const PROXY_BASE = "/api/zoho-proxy";
 const TOKEN_KEY = "lumine_zoho_token";
+const STATE_KEY = "lumine_zoho_state";
 const SCOPES = "ZohoBooks.contacts.READ,ZohoBooks.settings.READ,ZohoBooks.fullaccess.READ";
 
 // Set via index.html before app.js loads, or hardcode after registering the app
@@ -31,10 +32,25 @@ export function getClientId() {
   return window.LUMINE_ZOHO_CLIENT_ID || "";
 }
 
+// CSRF protection for the OAuth redirect (spec §10a): api/zoho-callback.js is a
+// stateless function with no server-side session to check `state` against, so the
+// check happens here instead — a random value generated before redirecting, stashed
+// in sessionStorage, echoed back by Zoho and relayed through the callback's redirect,
+// then compared on return. An attacker who starts their own OAuth flow and hands the
+// resulting callback URL to a victim controls `code` but not the victim's
+// sessionStorage, so their `state` can never match what the victim's browser stored —
+// consumeAuthFragment() rejects the token instead of silently accepting it.
+function randomState() {
+  if (window.crypto?.randomUUID) return crypto.randomUUID();
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export function startZohoAuth() {
   const clientId = getClientId();
   if (!clientId) throw new Error("Zoho client ID not configured — see the provisioning steps in README.md");
   const redirectUri = `${location.origin}/api/zoho-callback`;
+  const state = randomState();
+  try { sessionStorage.setItem(STATE_KEY, state); } catch { /* private mode etc. — see consumeAuthFragment's handling of a missing stored state */ }
   const params = new URLSearchParams({
     scope: SCOPES,
     client_id: clientId,
@@ -42,25 +58,34 @@ export function startZohoAuth() {
     access_type: "offline",
     redirect_uri: redirectUri,
     prompt: "consent",
+    state,
   });
   location.href = `${ACCOUNTS_BASE}/oauth/v2/auth?${params}`;
 }
 
 // Reads the access token (or error) out of the URL fragment left by
-// api/zoho-callback.js's redirect, stores it, and strips the fragment so a page
-// reload/share never carries it. Call once at boot.
+// api/zoho-callback.js's redirect, verifies `state` (see above), stores the token,
+// and strips the fragment so a page reload/share never carries it. Call once at boot.
 export function consumeAuthFragment() {
   const hash = location.hash.startsWith("#") ? location.hash.slice(1) : "";
   if (!hash) return { token: getStoredToken(), error: null };
 
   const params = new URLSearchParams(hash);
   const token = params.get("zoho_access_token");
-  const error = params.get("zoho_error");
+  const returnedState = params.get("zoho_state");
+  let error = params.get("zoho_error");
 
   if (token || error) {
     history.replaceState({}, document.title, location.pathname + location.search);
   }
+
+  let expectedState = null;
+  try { expectedState = sessionStorage.getItem(STATE_KEY); sessionStorage.removeItem(STATE_KEY); } catch { /* ignore */ }
+
   if (token) {
+    if (!expectedState || returnedState !== expectedState) {
+      return { token: getStoredToken(), error: "state mismatch on the OAuth redirect (possible CSRF) — please reconnect" };
+    }
     try { sessionStorage.setItem(TOKEN_KEY, token); } catch { /* private mode etc. */ }
     return { token, error: null };
   }

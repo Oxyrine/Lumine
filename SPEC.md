@@ -246,6 +246,14 @@ functions exist only for this feature:
   is blocked outright regardless of token validity; a Node function has no such restriction
   since CORS is a browser policy, not a server one.
 
+The OAuth redirect carries a `state` value CSRF-protecting the flow: `zoho.js` generates one
+before redirecting to Zoho and stashes it in `sessionStorage`; `api/zoho-callback.js` — which
+has no server-side session to check it against — relays it through unchanged; `zoho.js`
+verifies the returned value matches before ever storing a token. An attacker who starts their
+own OAuth flow and hands a victim the resulting callback URL controls the authorization code
+but not the victim's `sessionStorage`, so their `state` can never match and the token is
+rejected rather than silently accepted.
+
 Deliberately not built: refresh-token persistence (no database exists to hold one securely
 between requests — the access token lives in `sessionStorage` and the user reconnects after
 ~1hr), and anything beyond vendors/bills. This feature only works on the deployed site (or
